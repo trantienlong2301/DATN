@@ -1,54 +1,36 @@
-import sys
 from PyQt5.QtWidgets import QApplication, QGraphicsView, QGraphicsScene, QGraphicsEllipseItem
 from PyQt5.QtCore import Qt, QPointF
+from PyQt5.QtGui import QMouseEvent, QPen, QColor
 
-
-class MovingObject(QGraphicsEllipseItem):
-    def __init__(self, x, y, r):
-        super().__init__(0, 0, r, r)
-        self.setPos(x, y)
-        self.setBrush(Qt.blue)
-        self.setAcceptHoverEvents(True)
-
-    # mouse hover event
-    def hoverEnterEvent(self, event):
-        app.instance().setOverrideCursor(Qt.OpenHandCursor)
-
-    def hoverLeaveEvent(self, event):
-        app.instance().restoreOverrideCursor()
-
-    # mouse click event
-    def mousePressEvent(self, event):
-        pass
-
-    def mouseMoveEvent(self, event):
-        orig_cursor_position = event.lastScenePos()
-        updated_cursor_position = event.scenePos()
-
-        orig_position = self.scenePos()
-
-        updated_cursor_x = updated_cursor_position.x() - orig_cursor_position.x() + orig_position.x()
-        updated_cursor_y = updated_cursor_position.y() - orig_cursor_position.y() + orig_position.y()
-        self.setPos(QPointF(updated_cursor_x, updated_cursor_y))
-
-    def mouseReleaseEvent(self, event):
-        print('x: {0}, y: {1}'.format(self.pos().x(), self.pos().y()))
-
-class GraphicView(QGraphicsView):
+class CustomGraphicsView(QGraphicsView):
     def __init__(self):
         super().__init__()
 
+        # Tạo một scene
         self.scene = QGraphicsScene()
-        self.setScene(self.scene)       
-        self.setSceneRect(0, 0, 1200, 1000)
+        self.setScene(self.scene)
 
-        self.moveObject = MovingObject(50, 50, 40)
-        # self.moveObject2 = MovingObject(100, 100, 100)
-        self.scene.addItem(self.moveObject)
-        # self.scene.addItem(self.moveObject2)
+        # Biến lưu hình tròn hiện tại
+        self.current_circle = None
 
+    def mousePressEvent(self, event: QMouseEvent):
+        if event.button() == Qt.LeftButton:  # Chỉ xử lý khi click chuột trái
+            scene_pos = self.mapToScene(event.pos())  # Lấy tọa độ trong scene
 
-# app = QApplication(sys.argv)
-# view = GraphicView()
-# view.show()
-# sys.exit(app.exec_())
+            # Xóa hình tròn cũ nếu có
+            if self.current_circle:
+                self.scene.removeItem(self.current_circle)
+
+            # Vẽ hình tròn mới
+            pen = QPen(QColor("blue"))  # Viền màu xanh
+            self.current_circle = self.scene.addEllipse(scene_pos.x() - 250, scene_pos.y() - 250, 
+                                                         500, 500, pen)
+
+        super().mousePressEvent(event)  # Gọi hàm gốc để không ảnh hưởng các sự kiện khác
+
+if __name__ == "__main__":
+    app = QApplication([])
+    view = CustomGraphicsView()
+    view.setSceneRect(0, 0, 800, 600)  # Thiết lập kích thước scene
+    view.show()
+    app.exec_()

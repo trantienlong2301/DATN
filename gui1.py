@@ -14,11 +14,11 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
-        MainWindow.resize(1253, 866)
+        MainWindow.resize(1600, 900)
         self.centralwidget = QtWidgets.QWidget(MainWindow)
         self.centralwidget.setObjectName("centralwidget")
         self.widget = QtWidgets.QWidget(self.centralwidget)
-        self.widget.setGeometry(QtCore.QRect(580, 150, 650, 650))
+        self.widget.setGeometry(QtCore.QRect(500, 120, 1000, 750))
         self.widget.setObjectName("widget")
         self.SetUp = QtWidgets.QPushButton(self.centralwidget)
         self.SetUp.setGeometry(QtCore.QRect(610, 30, 131, 71))
@@ -44,9 +44,12 @@ class Ui_MainWindow(object):
         self.ReClock = QtWidgets.QPushButton(self.centralwidget)
         self.ReClock.setGeometry(QtCore.QRect(180, 370, 91, 91))
         self.ReClock.setObjectName("ReClock")
+        self.Select = QtWidgets.QPushButton(self.centralwidget)
+        self.Select.setGeometry(QtCore.QRect(140, 70, 111, 41))
+        self.Select.setObjectName("Select")
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QtWidgets.QMenuBar(MainWindow)
-        self.menubar.setGeometry(QtCore.QRect(0, 0, 1253, 26))
+        self.menubar.setGeometry(QtCore.QRect(0, 0, 1600, 26))
         self.menubar.setObjectName("menubar")
         MainWindow.setMenuBar(self.menubar)
         self.statusbar = QtWidgets.QStatusBar(MainWindow)
@@ -67,6 +70,7 @@ class Ui_MainWindow(object):
         self.Left.setText(_translate("MainWindow", "Left"))
         self.Clock.setText(_translate("MainWindow", "Clock"))
         self.ReClock.setText(_translate("MainWindow", "CounterClock"))
+        self.Select.setText(_translate("MainWindow", "Select"))
 
 
 if __name__ == "__main__":

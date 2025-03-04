@@ -26,12 +26,13 @@ class MovingCompositeObject(QGraphicsItem):
 
         # Thiết lập điểm gốc quay là tâm của boundingRect()
         self.setTransformOriginPoint(self.boundingRect().center())
-        # Điều chỉnh góc quay của đối tượng, ví dụ quay 45 độ so với trục x
-        self.setRotation(self.angle())
+        
+        self.flag = False
     
-    def angle(self):
-        return 30
-    
+    def setMovable(self, movable: bool):
+        self.flag = movable
+        self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, movable)
+
     def boundingRect(self):
         """
         Phương thức này trả về vùng chứa (bounding rectangle) của toàn bộ đối tượng.
@@ -65,44 +66,52 @@ class MovingCompositeObject(QGraphicsItem):
         Khi con trỏ chuột di chuyển vào vùng của đối tượng,
         thay đổi hình con trỏ thành hình bàn tay mở.
         """
-        self.setCursor(Qt.CursorShape.OpenHandCursor)
+        if self.flag:
+            self.setCursor(Qt.CursorShape.OpenHandCursor)
         super().hoverEnterEvent(event)
-
+        
     def hoverLeaveEvent(self, event):
         """
         Khi con trỏ chuột rời khỏi đối tượng, khôi phục hình con trỏ mặc định.
         """
-        self.unsetCursor()
+        if self.flag:
+            self.unsetCursor()
         super().hoverLeaveEvent(event)
-
+       
     def mousePressEvent(self, event):
         """
         Khi nhấn chuột, đổi con trỏ thành hình bàn tay nắm chặt,
         và lưu lại vị trí ban đầu của chuột và của đối tượng.
         """
-        self.setCursor(Qt.CursorShape.ClosedHandCursor)
-        self._startPos = event.scenePos()  # Vị trí chuột ban đầu trong scene
-        self._itemPos = self.pos()          # Vị trí hiện tại của đối tượng
+        if self.flag:
+            self.setCursor(Qt.CursorShape.ClosedHandCursor)
+            self._startPos = event.scenePos()  # Vị trí chuột ban đầu trong scene
+            self._itemPos = self.pos()          # Vị trí hiện tại của đối tượng
         super().mousePressEvent(event)
-
+        
     def mouseMoveEvent(self, event):
         """
         Khi kéo chuột, tính toán sự thay đổi vị trí của chuột so với vị trí ban đầu
         và cập nhật vị trí của đối tượng tương ứng.
         """
-        if hasattr(self, '_startPos'):
-            delta = event.scenePos() - self._startPos
-            self.setPos(self._itemPos + delta)
+        if self.flag:
+            if hasattr(self, '_startPos'):
+                delta = event.scenePos() - self._startPos
+                self.setPos(self._itemPos + delta)
         super().mouseMoveEvent(event)
-
+        
     def mouseReleaseEvent(self, event):
         """
         Khi nhả chuột, thay đổi con trỏ trở lại hình bàn tay mở và in ra vị trí mới của đối tượng.
         """
-        self.setCursor(Qt.CursorShape.OpenHandCursor)
-        print('New position: x = {0}, y = {1}'.format(self.pos().x(), self.pos().y()))
+        if self.flag:
+            self.setCursor(Qt.CursorShape.OpenHandCursor)
+            self.print_position()
         super().mouseReleaseEvent(event)
-
+        
+    def print_position(self):
+        print('New position: x = {0}, y = {1}'.format(self.pos().x() + self.boundingRect().width() / 2,
+                                                       self.pos().y() + self.boundingRect().height() / 2  ))
 class GraphicView(QGraphicsView):
     def __init__(self):
         super().__init__()
