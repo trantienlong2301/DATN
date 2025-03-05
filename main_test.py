@@ -48,6 +48,7 @@ class MainWindow:
         self.uic.Clock.clicked.connect(self.rotate_clockwise)
         self.uic.ReClock.clicked.connect(self.rotate_counterclockwise)
         self.uic.Select.clicked.connect(self.find_path)
+        self.uic.Load_dxf.clicked.connect(self.load_dxf_file)
         
         # tạo graphics trên widget
         layout = QtWidgets.QVBoxLayout(self.uic.widget)
@@ -56,12 +57,9 @@ class MainWindow:
         self.scene = QtWidgets.QGraphicsScene()
         self.graphicsView.setScene(self.scene)
 
-        # mở file dxf
-        self.load_dxf_file()
-        self.draw_dxf()
-        proportion = min(float(950/(self.Mapprocessing.max_x - self.Mapprocessing.min_x)), 
-                         float(700/(self.Mapprocessing.max_y - self.Mapprocessing.min_y)))
-        self.graphicsView.scale(proportion,proportion)
+        # proportion = min(float(950/(self.Mapprocessing.max_x - self.Mapprocessing.min_x)), 
+        #                  float(700/(self.Mapprocessing.max_y - self.Mapprocessing.min_y)))
+        # self.graphicsView.scale(proportion,proportion)
         
         # self.graphicsView.pointsSelectedCallback = self.processSelectedPoints
         self.is_goal_active = False
@@ -77,6 +75,8 @@ class MainWindow:
         if file_path:
             self.Mapprocessing = MapProcessing(file_path)
             self.Mapprocessing.workingCoordinates()
+
+        self.draw_dxf()
 
     def draw_dxf(self):
         if self.Mapprocessing.dwg is None:
@@ -99,7 +99,9 @@ class MainWindow:
             text_item.setDefaultTextColor(Qt.blue)
             # Đặt vị trí dựa trên giá trị x, y đã cho
             text_item.setPos(coord['x'], coord['y'])
-    
+        proportion = min(float(950/(self.Mapprocessing.max_x - self.Mapprocessing.min_x)), 
+                         float(700/(self.Mapprocessing.max_y - self.Mapprocessing.min_y)))
+        self.graphicsView.scale(proportion,proportion)
     
 
     def show(self):
@@ -125,28 +127,34 @@ class MainWindow:
             self.moving_obj.setMovable(False)
            
     def move_up(self):
-        if hasattr(self, 'moving_obj'):
-            self.moving_obj.setPos(self.moving_obj.pos() + QPointF(0, -100))  # Move up by 10 units
+        if self.is_setup_active:
+            if hasattr(self, 'moving_obj'):
+                self.moving_obj.setPos(self.moving_obj.pos() + QPointF(0, -100))  # Move up by 10 units
 
     def move_down(self):
-        if hasattr(self, 'moving_obj'):
-            self.moving_obj.setPos(self.moving_obj.pos() + QPointF(0, 100))  # Move down by 10 units
+        if self.is_setup_active:
+            if hasattr(self, 'moving_obj'):
+                self.moving_obj.setPos(self.moving_obj.pos() + QPointF(0, 100))  # Move down by 10 units
 
     def move_left(self):
-        if hasattr(self, 'moving_obj'):
-            self.moving_obj.setPos(self.moving_obj.pos() + QPointF(-100, 0))  # Move left by 10 units
+        if self.is_setup_active:
+            if hasattr(self, 'moving_obj'):
+                self.moving_obj.setPos(self.moving_obj.pos() + QPointF(-100, 0))  # Move left by 10 units
 
     def move_right(self):
-        if hasattr(self, 'moving_obj'):
-            self.moving_obj.setPos(self.moving_obj.pos() + QPointF(100, 0))  # Move right by 10 units
+        if self.is_setup_active:
+            if hasattr(self, 'moving_obj'):
+                self.moving_obj.setPos(self.moving_obj.pos() + QPointF(100, 0))  # Move right by 10 units
 
     def rotate_clockwise(self):
-        if hasattr(self, 'moving_obj'):
-            self.moving_obj.setRotation(self.moving_obj.rotation() + 10)  # Rotate clockwise by 10 degrees
+        if self.is_setup_active:
+            if hasattr(self, 'moving_obj'):
+                self.moving_obj.setRotation(self.moving_obj.rotation() + 10)  # Rotate clockwise by 10 degrees
 
     def rotate_counterclockwise(self):
-        if hasattr(self, 'moving_obj'):
-            self.moving_obj.setRotation(self.moving_obj.rotation() - 10)  # Rotate counterclockwise by 10 degrees
+        if self.is_setup_active:
+            if hasattr(self, 'moving_obj'):
+                self.moving_obj.setRotation(self.moving_obj.rotation() - 10)  # Rotate counterclockwise by 10 degrees
     
     def add_goal_item(self):
         self.is_goal_active = not self.is_goal_active
@@ -168,10 +176,16 @@ class MainWindow:
         print(f"Selected goal: {self.selected_goal}")
             
     def find_path(self):
+        self.is_goal_active = False
+        self.uic.Goal.setStyleSheet("") 
+        self.is_setup_active = False
+        self.uic.SetUp.setStyleSheet("")
+        self.graphicsView.pointsSelectedCallback = None 
         if hasattr(self, 'moving_obj') and self.selected_goal:
             start = (self.moving_obj.pos().x() + self.moving_obj.boundingRect().width() / 2,
                      self.moving_obj.pos().y() + self.moving_obj.boundingRect().height() / 2)
             path = self.Mapprocessing.dijkstra_shortest_path(start, self.selected_goal)
+            path = self.remove_collinear_points(path,start,self.selected_goal)
             print(f"Path: {path}")
             self.display_path(path)
 
@@ -181,7 +195,25 @@ class MainWindow:
             x1, y1 = path[i]
             x2, y2 = path[i + 1]
             self.scene.addLine(x1, y1, x2, y2, pen_path)
+
+    def remove_collinear_points(self,path,start,end):
+        if len(path) < 3:
+            return path  # Nếu có ít hơn 3 điểm thì không cần xử lý
         
+        optimized_path = [path[0]]  # Giữ điểm đầu tiên
+        for i in range(1, len(path) - 1):
+            x1, y1 = path[i - 1]
+            x2, y2 = path[i]
+            x3, y3 = path[i + 1]
+
+            # Kiểm tra nếu 3 điểm thẳng hàng bằng cách so sánh hệ số góc
+            if (x2 - x1) * (y3 - y2) != (y2 - y1) * (x3 - x2):
+                optimized_path.append((x2, y2))  # Giữ lại điểm không nằm trên đoạn thẳng
+
+        optimized_path.append(end)  # Giữ điểm cuối cùng
+        optimized_path[0] = start
+        return optimized_path  
+    
 if __name__ =="__main__":
         app = QApplication(sys.argv)
         main_win = MainWindow()

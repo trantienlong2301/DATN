@@ -45,8 +45,11 @@ class Ui_MainWindow(object):
         self.ReClock.setGeometry(QtCore.QRect(180, 370, 91, 91))
         self.ReClock.setObjectName("ReClock")
         self.Select = QtWidgets.QPushButton(self.centralwidget)
-        self.Select.setGeometry(QtCore.QRect(140, 70, 111, 41))
+        self.Select.setGeometry(QtCore.QRect(60, 40, 111, 41))
         self.Select.setObjectName("Select")
+        self.Load_dxf = QtWidgets.QPushButton(self.centralwidget)
+        self.Load_dxf.setGeometry(QtCore.QRect(200, 40, 111, 41))
+        self.Load_dxf.setObjectName("Load_dxf")
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QtWidgets.QMenuBar(MainWindow)
         self.menubar.setGeometry(QtCore.QRect(0, 0, 1600, 26))
@@ -71,6 +74,7 @@ class Ui_MainWindow(object):
         self.Clock.setText(_translate("MainWindow", "Clock"))
         self.ReClock.setText(_translate("MainWindow", "CounterClock"))
         self.Select.setText(_translate("MainWindow", "Select"))
+        self.Load_dxf.setText(_translate("MainWindow", "Load Map"))
 
 
 if __name__ == "__main__":
