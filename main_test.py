@@ -19,12 +19,9 @@ class CustomGraphicsView(QGraphicsView):
             print(f"Chọn điểm: ({scene_pos.x()}, {scene_pos.y()})")
             self.selected_points = scene_pos.x(), scene_pos.y()
             
-            # pen = QPen(Qt.green, 50)
-            # self.scene().addEllipse(scene_pos.x()-250, scene_pos.y()-250, 500, 500, pen)
            # Gọi callback nếu đã được thiết lập
             if self.pointsSelectedCallback:
                     self.pointsSelectedCallback(self.selected_points)
-            #     self.selected_points = []  # Reset danh sách để chọn lại
         super().mousePressEvent(event)
 
     def wheelEvent(self, event):
@@ -57,16 +54,15 @@ class MainWindow:
         self.scene = QtWidgets.QGraphicsScene()
         self.graphicsView.setScene(self.scene)
 
-        # proportion = min(float(950/(self.Mapprocessing.max_x - self.Mapprocessing.min_x)), 
-        #                  float(700/(self.Mapprocessing.max_y - self.Mapprocessing.min_y)))
-        # self.graphicsView.scale(proportion,proportion)
-        
         # self.graphicsView.pointsSelectedCallback = self.processSelectedPoints
         self.is_goal_active = False
         self.moving_obj_unactive = True
         self.is_setup_active = False  # Track the state of the SetUp button
         self.selected_goal = None
         self.current_circle = None
+        self.path_points = []
+        self.path_lines = []
+
     def load_dxf_file(self):
         # Hộp thoại chọn file DXF
         file_path, _ = QtWidgets.QFileDialog.getOpenFileName(
@@ -149,16 +145,17 @@ class MainWindow:
     def rotate_clockwise(self):
         if self.is_setup_active:
             if hasattr(self, 'moving_obj'):
-                self.moving_obj.setRotation(self.moving_obj.rotation() + 10)  # Rotate clockwise by 10 degrees
+                self.moving_obj.setRotation(self.moving_obj.rotation() - 10)  # Rotate clockwise by 10 degrees
 
     def rotate_counterclockwise(self):
         if self.is_setup_active:
             if hasattr(self, 'moving_obj'):
-                self.moving_obj.setRotation(self.moving_obj.rotation() - 10)  # Rotate counterclockwise by 10 degrees
+                self.moving_obj.setRotation(self.moving_obj.rotation() + 10)  # Rotate counterclockwise by 10 degrees
     
     def add_goal_item(self):
         self.is_goal_active = not self.is_goal_active
         self.is_setup_active = False   
+        self.moving_obj.setMovable(False)
         self.uic.SetUp.setStyleSheet("") 
         if self.is_goal_active:
             self.uic.Goal.setStyleSheet("background-color: blue;")
@@ -184,17 +181,22 @@ class MainWindow:
         if hasattr(self, 'moving_obj') and self.selected_goal:
             start = (self.moving_obj.pos().x() + self.moving_obj.boundingRect().width() / 2,
                      self.moving_obj.pos().y() + self.moving_obj.boundingRect().height() / 2)
-            path = self.Mapprocessing.dijkstra_shortest_path(start, self.selected_goal)
-            path = self.remove_collinear_points(path,start,self.selected_goal)
-            print(f"Path: {path}")
-            self.display_path(path)
+            self.path_points = self.Mapprocessing.dijkstra_shortest_path(start, self.selected_goal)
+            self.path_points = self.remove_collinear_points(self.path_points,start,self.selected_goal)
+            print(f"Path: {self.path_points}")
+            self.display_path(self.path_points)
 
-    def display_path(self, path):   
+    def display_path(self, path):  
+         # Xóa đường cũ trước khi vẽ đường mới
+        for line in getattr(self, 'path_lines', []):
+            self.scene.removeItem(line)
+        self.path_lines = []  # Xóa danh sách cũ 
         pen_path = QPen(Qt.darkGreen, 20)
         for i in range(len(path) - 1):
             x1, y1 = path[i]
             x2, y2 = path[i + 1]
-            self.scene.addLine(x1, y1, x2, y2, pen_path)
+            line =  self.scene.addLine(x1, y1, x2, y2, pen_path)
+            self.path_lines.append(line)
 
     def remove_collinear_points(self,path,start,end):
         if len(path) < 3:
