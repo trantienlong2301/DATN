@@ -182,7 +182,6 @@ class MainWindow:
             start = (self.moving_obj.pos().x() + self.moving_obj.boundingRect().width() / 2,
                      self.moving_obj.pos().y() + self.moving_obj.boundingRect().height() / 2)
             self.path_points = self.Mapprocessing.dijkstra_shortest_path(start, self.selected_goal)
-            self.path_points = self.remove_collinear_points(self.path_points,start,self.selected_goal)
             print(f"Path: {self.path_points}")
             self.display_path(self.path_points)
 
@@ -198,23 +197,6 @@ class MainWindow:
             line =  self.scene.addLine(x1, y1, x2, y2, pen_path)
             self.path_lines.append(line)
 
-    def remove_collinear_points(self,path,start,end):
-        if len(path) < 3:
-            return path  # Nếu có ít hơn 3 điểm thì không cần xử lý
-        
-        optimized_path = [path[0]]  # Giữ điểm đầu tiên
-        for i in range(1, len(path) - 1):
-            x1, y1 = path[i - 1]
-            x2, y2 = path[i]
-            x3, y3 = path[i + 1]
-
-            # Kiểm tra nếu 3 điểm thẳng hàng bằng cách so sánh hệ số góc
-            if (x2 - x1) * (y3 - y2) != (y2 - y1) * (x3 - x2):
-                optimized_path.append((x2, y2))  # Giữ lại điểm không nằm trên đoạn thẳng
-
-        optimized_path.append(end)  # Giữ điểm cuối cùng
-        optimized_path[0] = start
-        return optimized_path  
     
 if __name__ =="__main__":
         app = QApplication(sys.argv)

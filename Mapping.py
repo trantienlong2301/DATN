@@ -2,6 +2,8 @@ import ezdxf
 from shapely.geometry import Polygon, Point, LineString
 from collections import defaultdict
 import heapq
+from math import exp
+import numpy as np
 
 class MapProcessing:
     def __init__(self, filename):
@@ -184,8 +186,12 @@ class MapProcessing:
             current_vertex = previous[current_vertex]
         path.append(start)
         path.reverse()
+        #path = self.remove_collinear_points(path)
+        path = self.smoothPath(path)
+        path[0] = start_old
+        path[-1] = end_old
         return path
-
+    
     def findClosestGridCenter(self, point):
         min_distance = float('inf')
         closest_center = None
@@ -208,6 +214,98 @@ class MapProcessing:
 
     def _distance(self, point1, point2):
         return ((point1[0] - point2[0]) ** 2 + (point1[1] - point2[1]) ** 2) ** 0.5
+    
+    def remove_collinear_points(self,path):
+        if len(path) < 3:
+            return path  # Nếu có ít hơn 3 điểm thì không cần xử lý
+        
+        optimized_path = [path[0]]  # Giữ điểm đầu tiên
+        for i in range(1, len(path) - 1):
+            x1, y1 = path[i - 1]
+            x2, y2 = path[i]
+            x3, y3 = path[i + 1]
+
+            # Kiểm tra nếu 3 điểm thẳng hàng bằng cách so sánh hệ số góc
+            if (x2 - x1) * (y3 - y2) != (y2 - y1) * (x3 - x2):
+                optimized_path.append((x2, y2))  # Giữ lại điểm không nằm trên đoạn thẳng
+
+        optimized_path.append(path[-1])  # Giữ điểm cuối cùng
+        return optimized_path  
+    
+    def smoothPath(self, path):
+        lines = [LineString([(line[0][0], line[0][1]), (line[1][0], line[1][1])]) for line in self.line_points]
+        polygons = [Polygon(vertices) for vertices in self.lwpolyline_points]
+        smoothed_path = [path[0]]
+        for i in range(len(path)-1):
+            if path[i] in smoothed_path:
+                a = i + 2
+                for j in range(a,len(path)-1):
+                    flag = False
+                    line_path = LineString([path[i], path[j]])
+                    for line in lines:
+                        if line_path.distance(line) < 250:
+                            flag = True 
+                            break
+                    if flag == False:
+                        for polygon in polygons:
+                            if line_path.distance(polygon) < 220:
+                                flag = True
+                                break
+                    if flag:
+                        smoothed_path.append(path[j-1])
+                        break
+        smoothed_path.append(path[-1])
+        return smoothed_path
+
+    # def A_star_shortest_path(self, start_old, end_old):
+    #     start = self.findClosestGridCenter(start_old)
+    #     end = self.findClosestGridCenter(end_old)
+    #     weights = defaultdict(lambda: float('inf'))
+    #     heuristic = defaultdict(lambda: float('inf'))
+    #     weights[start] = 0
+    #     priority_queue = [(0, start)]
+    #     previous = {}
+    #     for cell in self.grid:
+    #         heuristic[cell] = self.countPointsInRectangle(cell,end)  * self._distance(cell,end)
+    #     while priority_queue:
+    #         current_weight, current_vertex = heapq.heappop(priority_queue)
+    #         if current_vertex == end:
+    #             break
+
+    #         for neighbor in self.getNeighbors(current_vertex):
+    #             new_weight = current_weight + self._distance(current_vertex, neighbor) + heuristic[neighbor]
+    #             if new_weight < weights[neighbor]:
+    #                 weights[neighbor] = new_weight
+    #                 previous[neighbor] = current_vertex
+    #                 heapq.heappush(priority_queue, (new_weight, neighbor))
+
+    #     path = []
+    #     current_vertex = end
+    #     while current_vertex != start:
+    #         path.append(current_vertex)
+    #         current_vertex = previous[current_vertex]
+    #     path.append(start)
+    #     path.reverse()
+    #     return path
+    
+    # def countPointsInRectangle(self, point1, point2):
+    #     # Extract the coordinates from the points
+    #     x1, y1 = point1
+    #     x2, y2 = point2
+        
+    #     # Ensure x1, y1 is the top-left and x2, y2 is the bottom-right
+    #     top_left = (min(x1, x2), min(y1, y2))
+    #     bottom_right = (max(x1, x2), max(y1, y2))
+        
+    #     count = 0
+    #     # Count the points within the rectangle
+    #     for x in range(top_left[0], bottom_right[0] + 1,200):
+    #         for y in range(top_left[1], bottom_right[1] + 1,200):
+    #             if (x, y) in self.grid:
+    #                 count += 1
+    #     sum = ((bottom_right[0] - top_left[0])/200+1) * ((bottom_right[1] - top_left[1])/200+1)
+    #     proprotion = 1 - count/sum
+    #     return exp(proprotion)
 
 if __name__ == "__main__":
     #visualizer = MapProcessing("E:/da_khoa_truoc/AGV_DATN2024/AGVs/Func/Map/Map1.dxf")
