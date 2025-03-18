@@ -1,9 +1,9 @@
 from PyQt5.QtCore import QRectF, QPointF, Qt
 from PyQt5.QtGui import QPainter, QBrush
 import sys
-from PyQt5.QtWidgets import QApplication, QGraphicsView, QGraphicsScene, QGraphicsItem
+from PyQt5.QtWidgets import QApplication, QGraphicsView, QGraphicsScene, QGraphicsItem, QGraphicsObject
 
-class MovingCompositeObject(QGraphicsItem):
+class MovingCompositeObject(QGraphicsObject):
     def __init__(self):
         super().__init__()
         # Cho phép nhận các sự kiện hover và đánh dấu là có thể di chuyển, chọn được.
@@ -123,6 +123,7 @@ class GraphicView(QGraphicsView):
         self.moveObject = MovingCompositeObject()
         # self.moveObject2 = MovingObject(100, 100, 100)
         self.scene.addItem(self.moveObject)
+        
         # self.scene.addItem(self.moveObject2)
 
 if __name__ == "__main__":

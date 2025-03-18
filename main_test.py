@@ -1,11 +1,12 @@
 import sys
+import math
 from PyQt5 import QtWidgets, QtCore, QtGui
 from PyQt5.QtWidgets import QApplication, QMainWindow, QGraphicsView, QGraphicsScene
 from Mapping import MapProcessing
 import ezdxf
 from gui1 import Ui_MainWindow
 from PyQt5.QtGui import QPen, QPolygonF, QFont
-from PyQt5.QtCore import Qt, QPointF
+from PyQt5.QtCore import Qt, QPointF, QPropertyAnimation, QSequentialAnimationGroup, QPointF, QEasingCurve, QTimer
 from AddMovingObject import MovingCompositeObject
 
 class CustomGraphicsView(QGraphicsView):
@@ -62,6 +63,7 @@ class MainWindow:
         self.current_circle = None
         self.path_points = []
         self.path_lines = []
+        self.select_count = 0
 
     def load_dxf_file(self):
         # Hộp thoại chọn file DXF
@@ -173,17 +175,24 @@ class MainWindow:
         print(f"Selected goal: {self.selected_goal}")
             
     def find_path(self):
-        self.is_goal_active = False
-        self.uic.Goal.setStyleSheet("") 
-        self.is_setup_active = False
-        self.uic.SetUp.setStyleSheet("")
-        self.graphicsView.pointsSelectedCallback = None 
-        if hasattr(self, 'moving_obj') and self.selected_goal:
-            start = (self.moving_obj.pos().x() + self.moving_obj.boundingRect().width() / 2,
-                     self.moving_obj.pos().y() + self.moving_obj.boundingRect().height() / 2)
-            self.path_points = self.Mapprocessing.dijkstra_shortest_path(start, self.selected_goal)
-            print(f"Path: {self.path_points}")
-            self.display_path(self.path_points)
+        if self.select_count == 0:
+            self.uic.Select.setText("animation")
+            self.select_count +=1
+            self.is_goal_active = False
+            self.uic.Goal.setStyleSheet("") 
+            self.is_setup_active = False
+            self.uic.SetUp.setStyleSheet("")
+            self.graphicsView.pointsSelectedCallback = None 
+            if hasattr(self, 'moving_obj') and self.selected_goal:
+                start = (self.moving_obj.pos().x() + self.moving_obj.boundingRect().width() / 2,
+                        self.moving_obj.pos().y() + self.moving_obj.boundingRect().height() / 2)
+                self.path_points = self.Mapprocessing.dijkstra_shortest_path(start, self.selected_goal)
+                print(f"Path: {self.path_points}")
+                self.display_path(self.path_points)
+        else:
+            self.select_count = 0
+            self.animate_moving_object(self.path_points)
+            self.uic.Select.setText("Select")
 
     def display_path(self, path):  
          # Xóa đường cũ trước khi vẽ đường mới
@@ -197,6 +206,57 @@ class MainWindow:
             line =  self.scene.addLine(x1, y1, x2, y2, pen_path)
             self.path_lines.append(line)
 
+    def animate_moving_object(self, path, speed=100):
+        if not hasattr(self, 'moving_obj') or len(path) == 0:
+            return
+
+        center_offset = QPointF(self.moving_obj.boundingRect().width() / 2,
+                                self.moving_obj.boundingRect().height() / 2)
+
+        # Định nghĩa hàm di chuyển từng bước
+        def move_step(index):
+            if index >= len(path):
+                return  # Kết thúc animation
+
+            start_point = QPointF(path[index - 1][0], path[index - 1][1]) - center_offset
+            end_point = QPointF(path[index][0], path[index][1]) - center_offset
+
+            distance = math.hypot(path[index][0] - path[index - 1][0], path[index][1] - path[index - 1][1])
+            proportion_x = (path[index][0] - path[index - 1][0]) / distance
+            proportion_y = (path[index][1] - path[index - 1][1]) / distance
+            angle = math.degrees(math.atan2(path[index][1] - path[index - 1][1],path[index][0] - path[index - 1][0]))
+            def step_angle():
+                current_angle = self.moving_obj.rotation()
+                angle_diff = angle - current_angle  # Độ lệch cần xoay
+                step_rotation = 10
+                if abs(angle_diff) > 10:  # Chỉ xoay nếu lệch hơn 5 độ
+                    if angle_diff < 0:
+                        step_rotation = -step_rotation
+
+                    new_angle = current_angle + step_rotation
+                    self.moving_obj.setRotation(new_angle)
+
+                    QTimer.singleShot(100, step_angle)  # Tiếp tục xoay sau 50ms
+                else:
+                    self.moving_obj.setRotation(angle)  # Căn chỉnh lại đúng góc sau cùng
+                    step()  # Gọi di chuyển sau khi xoay xong
+            def step():
+                current_pos = self.moving_obj.pos()
+                direction = (end_point - current_pos)
+                distance = math.hypot(direction.x(), direction.y())
+
+                if distance > speed:
+                    proportion_x = direction.x() / distance
+                    proportion_y = direction.y() / distance
+                    new_pos = current_pos + QPointF(speed * proportion_x, speed * proportion_y)
+                    self.moving_obj.setPos(new_pos)
+                    QTimer.singleShot(100, step)  # Gọi lại step() sau 50ms
+                else:
+                    self.moving_obj.setPos(end_point)  # Đến đích, gọi bước tiếp theo
+                    move_step(index + 1)
+            step_angle()  # Bắt đầu animation
+
+        move_step(1)  # Bắt đầu từ điểm thứ hai
     
 if __name__ =="__main__":
         app = QApplication(sys.argv)
