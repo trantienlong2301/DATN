@@ -12,10 +12,10 @@ class MovingCompositeObject(QGraphicsObject):
                       QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
         
         # Định nghĩa tọa độ và kích thước cho các hình, theo hệ tọa độ cục bộ của đối tượng.
-        self.rect1 = QRectF(0, 0, 500, 300)      # Hình chữ nhật thứ nhất
-        self.rect2 = QRectF(300, 100, 100, 100)    # Hình chữ nhật thứ hai
-        self.rect3 = QRectF(100, -100, 300, 100)   # Hình tròn thứ nhất
-        self.rect4 = QRectF(100, 300, 300, 100)    # Hình tròn thứ hai
+        self.rect1 = QRectF(0, 100, 500, 300)      # Hình chữ nhật thứ nhất
+        self.rect2 = QRectF(300, 200, 100, 100)    # Hình chữ nhật thứ hai
+        self.rect3 = QRectF(100, 0, 300, 100)   # Hình tròn thứ nhất
+        self.rect4 = QRectF(100, 400, 300, 100)    # Hình tròn thứ hai
  # Hình tròn thứ hai
         
         # Đặt màu sắc cho từng hình (có thể tùy chỉnh theo ý muốn)
@@ -38,7 +38,7 @@ class MovingCompositeObject(QGraphicsObject):
         Phương thức này trả về vùng chứa (bounding rectangle) của toàn bộ đối tượng.
         Vùng này phải bao bọc đủ 4 hình (hai hình chữ nhật và hai hình tròn).
         """
-        return QRectF(0, -100, 500, 500)
+        return QRectF(0, 0, 500, 500)
 
     def paint(self, painter: QPainter, option, widget=None):
         """

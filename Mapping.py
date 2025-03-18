@@ -134,7 +134,7 @@ class MapProcessing:
 
         for cell in grid:
             cell_center = Point(cell[0], cell[1])
-            cell_boundary = cell_center.buffer(220)
+            cell_boundary = cell_center.buffer(300)
 
             for polygon in polygons:
                 if cell_boundary.intersects(polygon):
@@ -152,7 +152,7 @@ class MapProcessing:
             cell_center = Point(cell[0], cell[1])
 
             for line in lines:
-                if line.distance(cell_center) <= 250:
+                if line.distance(cell_center) <= 350:
                     blocked_cells.add(cell)
                     break
 
