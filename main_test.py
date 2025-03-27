@@ -199,14 +199,14 @@ class MainWindow:
         for line in getattr(self, 'path_lines', []):
             self.scene.removeItem(line)
         self.path_lines = []  # Xóa danh sách cũ 
-        pen_path = QPen(Qt.darkGreen, 20)
+        pen_path = QPen(Qt.darkGreen, 50)
         for i in range(len(path) - 1):
             x1, y1 = path[i]
             x2, y2 = path[i + 1]
             line =  self.scene.addLine(x1, y1, x2, y2, pen_path)
             self.path_lines.append(line)
 
-    def animate_moving_object(self, path, speed=100):
+    def animate_moving_object(self, path, speed=5,anguler_speed = 1):
         if not hasattr(self, 'moving_obj') or len(path) == 0:
             return
 
@@ -220,40 +220,67 @@ class MainWindow:
 
             start_point = QPointF(path[index - 1][0], path[index - 1][1]) - center_offset
             end_point = QPointF(path[index][0], path[index][1]) - center_offset
+            d_total = math.hypot(path[index][0] - path[index - 1][0], path[index][1] - path[index - 1][1])
+            target_angle = math.degrees(math.atan2(path[index][1] - path[index - 1][1],path[index][0] - path[index - 1][0]))
+            
+            a = speed
+            alpha = anguler_speed
+            segment_start = start_point
+            initial_angle = self.moving_obj.rotation()
 
-            distance = math.hypot(path[index][0] - path[index - 1][0], path[index][1] - path[index - 1][1])
-            proportion_x = (path[index][0] - path[index - 1][0]) / distance
-            proportion_y = (path[index][1] - path[index - 1][1]) / distance
-            angle = math.degrees(math.atan2(path[index][1] - path[index - 1][1],path[index][0] - path[index - 1][0]))
             def step_angle():
                 current_angle = self.moving_obj.rotation()
-                angle_diff = angle - current_angle  # Độ lệch cần xoay
-                step_rotation = 10
-                if abs(angle_diff) > 10:  # Chỉ xoay nếu lệch hơn 5 độ
-                    if angle_diff < 0:
-                        step_rotation = -step_rotation
+                angle_diff = target_angle - current_angle
+                # Xác định hướng xoay: 1 nếu tăng, -1 nếu giảm
+                sign = 1 if angle_diff > 0 else -1
+                d_total_angle = abs(target_angle - initial_angle)
+                d_travelled_angle = abs(current_angle - initial_angle)
+                d_remaining_angle = abs(target_angle - current_angle)
 
-                    new_angle = current_angle + step_rotation
-                    self.moving_obj.setRotation(new_angle)
+                # Nếu góc cần xoay quá nhỏ, hoàn thành xoay và chuyển sang di chuyển
+                if d_remaining_angle < 1:
+                    self.moving_obj.setRotation(target_angle)
+                    step()  # bắt đầu chuyển động
+                    return
 
-                    QTimer.singleShot(100, step_angle)  # Tiếp tục xoay sau 50ms
+                # Tính vận tốc góc mong muốn theo ba pha: gia tốc, tốc độ không đổi, giảm tốc
+                v_desired_angle = min(math.sqrt(2 * alpha * d_travelled_angle) if d_travelled_angle > 0 else 1,
+                                    5,
+                                    math.sqrt(2 * alpha * d_remaining_angle))
+                angular_step = v_desired_angle 
+
+                if d_remaining_angle <= angular_step:
+                    self.moving_obj.setRotation(target_angle)
+                    step()  # chuyển sang bước di chuyển khi đã xoay đủ
                 else:
-                    self.moving_obj.setRotation(angle)  # Căn chỉnh lại đúng góc sau cùng
-                    step()  # Gọi di chuyển sau khi xoay xong
+                    new_angle = current_angle + sign * angular_step
+                    self.moving_obj.setRotation(new_angle)
+                    QTimer.singleShot(100, step_angle)
+
             def step():
                 current_pos = self.moving_obj.pos()
+                d_travelled = math.hypot(current_pos.x() - segment_start.x(), current_pos.y() - segment_start.y())
+                d_remain = d_total - d_travelled
+                v_desired = min(math.sqrt(2 * a * d_travelled) if d_travelled > 0 else 10,
+                            100,
+                            math.sqrt(2 * a * d_remain) if d_remain > 0 else speed)
                 direction = (end_point - current_pos)
                 distance = math.hypot(direction.x(), direction.y())
 
-                if distance > speed:
-                    proportion_x = direction.x() / distance
-                    proportion_y = direction.y() / distance
-                    new_pos = current_pos + QPointF(speed * proportion_x, speed * proportion_y)
-                    self.moving_obj.setPos(new_pos)
-                    QTimer.singleShot(100, step)  # Gọi lại step() sau 50ms
+                if distance != 0:
+                    unit_direction = QPointF(direction.x() / distance, direction.y() / distance)
                 else:
-                    self.moving_obj.setPos(end_point)  # Đến đích, gọi bước tiếp theo
+                    unit_direction = QPointF(0, 0)
+
+                move_distance = v_desired 
+                if d_remain <= move_distance:
+                    self.moving_obj.setPos(end_point)
                     move_step(index + 1)
+                else:
+                    new_pos = current_pos + QPointF(unit_direction.x() * move_distance,
+                                                    unit_direction.y() * move_distance)
+                    self.moving_obj.setPos(new_pos)
+                    QTimer.singleShot(100, step)
             step_angle()  # Bắt đầu animation
 
         move_step(1)  # Bắt đầu từ điểm thứ hai

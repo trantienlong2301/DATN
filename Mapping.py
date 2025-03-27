@@ -152,7 +152,7 @@ class MapProcessing:
             cell_center = Point(cell[0], cell[1])
 
             for line in lines:
-                if line.distance(cell_center) <= 350:
+                if line.distance(cell_center) <= 300:
                     blocked_cells.add(cell)
                     break
 
@@ -243,12 +243,12 @@ class MapProcessing:
                     flag = False
                     line_path = LineString([path[i], path[j]])
                     for line in lines:
-                        if line_path.distance(line) < 250:
+                        if line_path.distance(line) < 300:
                             flag = True 
                             break
                     if flag == False:
                         for polygon in polygons:
-                            if line_path.distance(polygon) < 220:
+                            if line_path.distance(polygon) < 300:
                                 flag = True
                                 break
                     if flag:
