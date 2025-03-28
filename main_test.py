@@ -13,16 +13,19 @@ class CustomGraphicsView(QGraphicsView):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.selected_points = []
-        self.pointsSelectedCallback = None  # Callback để gửi 2 điểm khi chọn xong
+        self.pointsSelectedCallback = None  
+    
+    def eraseSelected_points (self):
+        self.selected_points = []
     def mousePressEvent(self, event):
+        
         if event.button() == Qt.LeftButton:
             scene_pos = self.mapToScene(event.pos())
-            print(f"Chọn điểm: ({scene_pos.x()}, {scene_pos.y()})")
-            self.selected_points = scene_pos.x(), scene_pos.y()
-            
-           # Gọi callback nếu đã được thiết lập
+
             if self.pointsSelectedCallback:
-                    self.pointsSelectedCallback(self.selected_points)
+                print(f"Chọn điểm: ({scene_pos.x()}, {scene_pos.y()})")
+                self.selected_points.append([scene_pos.x(), scene_pos.y()])
+                self.pointsSelectedCallback(self.selected_points)
         super().mousePressEvent(event)
 
     def wheelEvent(self, event):
@@ -55,11 +58,10 @@ class MainWindow:
         self.scene = QtWidgets.QGraphicsScene()
         self.graphicsView.setScene(self.scene)
 
-        # self.graphicsView.pointsSelectedCallback = self.processSelectedPoints
         self.is_goal_active = False
         self.moving_obj_unactive = True
         self.is_setup_active = False  # Track the state of the SetUp button
-        self.selected_goal = None
+        self.selected_goals = None
         self.current_circle = None
         self.path_points = []
         self.path_lines = []
@@ -160,21 +162,40 @@ class MainWindow:
         self.moving_obj.setMovable(False)
         self.uic.SetUp.setStyleSheet("") 
         if self.is_goal_active:
+            self.graphicsView.eraseSelected_points()
             self.uic.Goal.setStyleSheet("background-color: blue;")
             self.graphicsView.pointsSelectedCallback = self.processSelectedPoints
         else:
             self.uic.Goal.setStyleSheet("")
             self.graphicsView.pointsSelectedCallback = None 
 
-    def processSelectedPoints(self, points):
-        if self.current_circle:
-            self.scene.removeItem(self.current_circle)
-
-        self.selected_goal = points  
-        self.current_circle = self.scene.addEllipse(self.selected_goal[0]-250, self.selected_goal[1]-250, 500, 500, QPen(Qt.green, 20))
-        print(f"Selected goal: {self.selected_goal}")
+    def processSelectedPoints(self, points_list):
+        # Xóa tất cả các hình tròn cũ
+        for circle in getattr(self, "current_circles", []):
+            self.scene.removeItem(circle)
+        
+        # Lưu danh sách điểm được chọn
+        self.selected_goals = points_list  
+        
+        # Danh sách mới để lưu các hình tròn
+        self.current_circles = []
+        
+        # Vẽ hình tròn tại từng điểm trong danh sách
+        for point in points_list:
+            circle = self.scene.addEllipse(
+                point[0] - 250,  # X tọa độ góc trên bên trái
+                point[1] - 250,  # Y tọa độ góc trên bên trái
+                500, 500,  # Chiều rộng và chiều cao (hình tròn có đường kính 500)
+                QPen(Qt.green, 20)  # Màu viền xanh lá và độ dày 20px
+            )
+            self.current_circles.append(circle)  # Lưu lại để xóa sau này
+        
             
     def find_path(self):
+        if self.selected_goals is None:
+            print("chưa chọn điểm đích")
+        else:
+            print(f"Selected goals: {self.selected_goals}")
         if self.select_count == 0:
             self.uic.Select.setText("animation")
             self.select_count +=1
@@ -183,10 +204,15 @@ class MainWindow:
             self.is_setup_active = False
             self.uic.SetUp.setStyleSheet("")
             self.graphicsView.pointsSelectedCallback = None 
-            if hasattr(self, 'moving_obj') and self.selected_goal:
+            self.graphicsView.eraseSelected_points()
+            if hasattr(self, 'moving_obj') and self.selected_goals:
                 start = (self.moving_obj.pos().x() + self.moving_obj.boundingRect().width() / 2,
                         self.moving_obj.pos().y() + self.moving_obj.boundingRect().height() / 2)
-                self.path_points = self.Mapprocessing.dijkstra_shortest_path(start, self.selected_goal)
+                self.path_points = self.Mapprocessing.dijkstra_shortest_path(start, self.selected_goals[0])
+                for i in range(len(self.selected_goals) -1):
+                    inter_path = self.Mapprocessing.dijkstra_shortest_path(self.selected_goals[i],self.selected_goals[i+1])
+                    del inter_path[0]
+                    self.path_points.extend(inter_path)
                 print(f"Path: {self.path_points}")
                 self.display_path(self.path_points)
         else:
@@ -261,7 +287,7 @@ class MainWindow:
                 current_pos = self.moving_obj.pos()
                 d_travelled = math.hypot(current_pos.x() - segment_start.x(), current_pos.y() - segment_start.y())
                 d_remain = d_total - d_travelled
-                v_desired = min(math.sqrt(2 * a * d_travelled) if d_travelled > 0 else 10,
+                v_desired = min(math.sqrt(2 * a * d_travelled) if d_travelled > 0 else speed,
                             100,
                             math.sqrt(2 * a * d_remain) if d_remain > 0 else speed)
                 direction = (end_point - current_pos)
