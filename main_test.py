@@ -99,8 +99,8 @@ class MainWindow:
             text_item.setDefaultTextColor(Qt.blue)
             # Đặt vị trí dựa trên giá trị x, y đã cho
             text_item.setPos(coord['x'], coord['y'])
-        proportion = min(float(950/(self.Mapprocessing.max_x - self.Mapprocessing.min_x)), 
-                         float(700/(self.Mapprocessing.max_y - self.Mapprocessing.min_y)))
+        proportion = min(float((self.uic.widget.width()-50)/(self.Mapprocessing.max_x - self.Mapprocessing.min_x)), 
+                         float((self.uic.widget.height()-50)/(self.Mapprocessing.max_y - self.Mapprocessing.min_y)))
         self.graphicsView.scale(proportion,proportion)
     
 
