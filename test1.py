@@ -1,57 +1,34 @@
-import math
-from PyQt5.QtCore import QPropertyAnimation, QSequentialAnimationGroup, QPointF, QEasingCurve
+import asyncio
+import aiohttp
 
-def animate_moving_object(self, path):
-    """
-    Hàm này nhận vào danh sách path chứa các điểm (x, y) (đại diện cho tâm đối tượng)
-    và tạo animation di chuyển moving_obj dọc theo các điểm đó.
-    """
-    # Kiểm tra xem moving_obj đã tồn tại hay chưa
-    if not hasattr(self, 'moving_obj'):
-        return
+# Địa chỉ IP của ESP32, cập nhật theo mạng của bạn
+esp_ip = "http://192.168.158.239"
 
-    # Tạo một nhóm animation để nối các animation nhỏ lại
-    animation_group = QSequentialAnimationGroup()
+# Hàm gửi tốc độ và nhận vị trí từ ESP32
+async def control_robot(session, speed_value):
+    try:
+        # Gửi tốc độ đến ESP32
+        async with session.get(f"{esp_ip}/setSpeed", params={"value": speed_value}) as resp:
+            setSpeed_response = await resp.text()
+            print("Cập nhật tốc độ:", setSpeed_response)
 
-    # Tính offset: vị trí của đối tượng trong scene được xác định từ góc trên bên trái.
-    # Trong khi đó, các điểm đường đi thường đại diện cho tâm của đối tượng.
-    center_offset = QPointF(self.moving_obj.boundingRect().width() / 2,
-                            self.moving_obj.boundingRect().height() / 2)
+        # Lấy vị trí hiện tại của robot
+        async with session.get(f"{esp_ip}/getPosition") as resp:
+            position = await resp.text()
+            print("Vị trí robot:", position)
+    except Exception as e:
+        print("Lỗi:", e)
 
-    # Lấy vị trí tâm hiện tại của moving_obj
-    current_center = self.moving_obj.pos() + center_offset
+# Main loop chạy liên tục mỗi 0.1 giây
+async def main():
+    # Có thể cấu hình timeout nếu cần
+    async with aiohttp.ClientSession() as session:
+        # Ví dụ: tốc độ mong muốn có thể được tính toán hoặc lấy từ cảm biến
+        speed_value = 0.5  # ví dụ: 0.5 m/s
+        while True:
+            await control_robot(session, speed_value)
+            # Chờ không chặn 0.1 giây
+            await asyncio.sleep(0.1)
 
-    # Nếu điểm đầu tiên của đường đi không trùng với vị trí hiện tại, thêm vào đầu danh sách
-    if len(path) == 0:
-        return
-    if current_center != QPointF(path[0][0], path[0][1]):
-        path = [(current_center.x(), current_center.y())] + path
-
-    # Duyệt qua từng đoạn của đường đi
-    for i in range(1, len(path)):
-        # Tính toán giá trị bắt đầu và kết thúc của animation:
-        # Lưu ý: chúng ta trừ đi center_offset để setPos cho đúng (vì pos() là góc trên bên trái)
-        start_point = QPointF(path[i-1][0], path[i-1][1]) - center_offset
-        end_point = QPointF(path[i][0], path[i][1]) - center_offset
-
-        animation = QPropertyAnimation(self.moving_obj, b"pos")
-        animation.setStartValue(start_point)
-        animation.setEndValue(end_point)
-
-        # Tính khoảng cách giữa 2 điểm để xác định thời gian animation (ví dụ: 5ms cho mỗi đơn vị khoảng cách)
-        distance = math.hypot(path[i][0] - path[i-1][0], path[i][1] - path[i-1][1])
-        duration = int(distance * 5)  # Bạn có thể điều chỉnh hệ số này tùy ý
-        animation.setDuration(duration)
-
-        # (Tùy chọn) Sử dụng easing curve cho chuyển động mượt mà
-        animation.setEasingCurve(QEasingCurve.InOutQuad)
-
-        # Thêm animation vào nhóm
-        animation_group.addAnimation(animation)
-
-    # Để tránh bị garbage collected, bạn có thể lưu animation_group vào thuộc tính của MainWindow
-    self.current_animation = animation_group
-
-    # Bắt đầu animation
-    animation_group.start()
-
+# Chạy chương trình bất đồng bộ
+asyncio.run(main())

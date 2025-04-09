@@ -232,7 +232,7 @@ class MainWindow:
             line =  self.scene.addLine(x1, y1, x2, y2, pen_path)
             self.path_lines.append(line)
 
-    def animate_moving_object(self, path, speed=5,anguler_speed = 1):
+    def animate_moving_object(self, path, speed=500,anguler_speed = 25):
         if not hasattr(self, 'moving_obj') or len(path) == 0:
             return
 
@@ -271,9 +271,9 @@ class MainWindow:
 
                 # Tính vận tốc góc mong muốn theo ba pha: gia tốc, tốc độ không đổi, giảm tốc
                 v_desired_angle = min(math.sqrt(2 * alpha * d_travelled_angle) if d_travelled_angle > 0 else 1,
-                                    5,
+                                    50,
                                     math.sqrt(2 * alpha * d_remaining_angle))
-                angular_step = v_desired_angle 
+                angular_step = v_desired_angle * 0.1
 
                 if d_remaining_angle <= angular_step:
                     self.moving_obj.setRotation(target_angle)
@@ -288,7 +288,7 @@ class MainWindow:
                 d_travelled = math.hypot(current_pos.x() - segment_start.x(), current_pos.y() - segment_start.y())
                 d_remain = d_total - d_travelled
                 v_desired = min(math.sqrt(2 * a * d_travelled) if d_travelled > 0 else speed,
-                            100,
+                            1000,
                             math.sqrt(2 * a * d_remain) if d_remain > 0 else speed)
                 direction = (end_point - current_pos)
                 distance = math.hypot(direction.x(), direction.y())
@@ -298,7 +298,7 @@ class MainWindow:
                 else:
                     unit_direction = QPointF(0, 0)
 
-                move_distance = v_desired 
+                move_distance = v_desired * 0.1
                 if d_remain <= move_distance:
                     self.moving_obj.setPos(end_point)
                     move_step(index + 1)
