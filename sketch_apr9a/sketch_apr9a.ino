@@ -1,57 +1,48 @@
 #include <WiFi.h>
-#include <WebServer.h>
 
-// Cấu hình WiFi
-const char* ssid = "RedmiK60";
-const char* password = "123456788";
+// Thay đổi thông tin WiFi theo mạng của bạn
+const char* ssid = "Long Pho 20";
+const char* password = "tienlong94";
 
-// Tạo web server chạy ở cổng 80
-WebServer server(80);
-
-// Biến tốc độ và vị trí robot (giả lập)
-float speed = 0;
-float position = 0;
-
-unsigned long lastUpdate = 0;
-
-void handleSetSpeed() {
-  if (server.hasArg("value")) {
-    speed = server.arg("value").toFloat();
-    server.send(200, "text/plain", "Toc do da cap nhat: " + String(speed));
-  } else {
-    server.send(400, "text/plain", "Thiếu tham số tốc độ");
-  }
-}
-
-void handleGetPosition() {
-  server.send(200, "text/plain", String(position));
-}
+WiFiServer server(80);  // Khởi tạo server ở port 80
 
 void setup() {
   Serial.begin(115200);
-
   WiFi.begin(ssid, password);
-  Serial.print("Đang kết nối WiFi...");
+  Serial.print("Đang kết nối đến WiFi...");
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
   }
-  Serial.println("\nĐã kết nối!");
-  Serial.println(WiFi.localIP());  // In địa chỉ IP của ESP32
+  Serial.println("");
+  Serial.print("Đã kết nối, địa chỉ IP: ");
+  Serial.println(WiFi.localIP());
 
-  // Đăng ký các route
-  server.on("/setSpeed", handleSetSpeed);
-  server.on("/getPosition", handleGetPosition);
-
-  server.begin();
+  server.begin();  // Bắt đầu server
 }
 
 void loop() {
-  server.handleClient();
-
-  // Giả lập robot di chuyển mỗi 100ms
-  if (millis() - lastUpdate >= 100) {
-    position += speed * 0.1;  // cập nhật vị trí theo tốc độ (x = v * t)
-    lastUpdate = millis();
+  WiFiClient client = server.available();
+  
+  if (client) {
+    Serial.println("Có client kết nối");
+    
+    // Khi đã có client, giữ kết nối và giao tiếp liên tục
+    while (client.connected()) {
+      // Nếu có dữ liệu từ client, xử lý dữ liệu đó
+      if (client.available()) {
+        String data = client.readStringUntil('\n');
+        Serial.println("Nhận được: " + data);
+        // Gửi phản hồi lại cho client
+        client.println("Pong from ESP32");
+      }
+      // Có thể thêm delay ngắn nếu cần tránh lặp quá nhanh
+      delay(10);
+    }
+    
+    // Khi client ngắt kết nối, dọn dẹp
+    client.stop();
+    Serial.println("Client ngắt kết nối");
   }
 }
+

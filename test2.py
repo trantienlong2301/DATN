@@ -1,53 +1,23 @@
-import sys
-import asyncio
-import aiohttp
-from PyQt5.QtWidgets import QApplication, QLabel, QWidget, QVBoxLayout
-from PyQt5.QtCore import QTimer
-from qasync import QEventLoop, asyncSlot
+import socket
+import time 
 
-esp_ip = "http://192.168.158.239"
-speed_value = 0.5  # tốc độ m/s
+HOST = '192.168.1.45'  # Địa chỉ IP của ESP32
+PORT = 80               # Port đang sử dụng trên ESP32
 
-class MainWindow(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.label = QLabel("Đang gửi dữ liệu...")
-        layout = QVBoxLayout()
-        layout.addWidget(self.label)
-        self.setLayout(layout)
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.connect((HOST, PORT))
+print("Đã kết nối đến ESP32")
 
-        # Tạo session aiohttp
-        self.session = aiohttp.ClientSession()
-
-        # Gọi lần đầu tiên sau 100ms
-        QTimer.singleShot(100, self.send_speed)
-
-    @asyncSlot()  # Chạy coroutine với PyQt
-    async def send_speed(self):
-        try:
-            async with self.session.get(f"{esp_ip}/setSpeed", params={"value": speed_value}) as resp:
-                text = await resp.text()
-                self.label.setText(f"Đã gửi: {text}")
-                print("Đã gửi tốc độ:", text)
-        except Exception as e:
-            self.label.setText(f"Lỗi: {e}")
-            print("Lỗi khi gửi:", e)
-
-        # Lặp lại sau 100ms
-        QTimer.singleShot(100, lambda: asyncio.create_task(self.send_speed()))
-
-    async def closeEvent(self, event):
-        await self.session.close()
-        event.accept()
-
-# Khởi tạo Qt + asyncio event loop
-app = QApplication(sys.argv)
-loop = QEventLoop(app)
-asyncio.set_event_loop(loop)
-
-window = MainWindow()
-window.setWindowTitle("Điều khiển ESP32 qua WiFi")
-window.show()
-
-with loop:
-    loop.run_forever()
+try:
+    while True:
+        # Gửi dữ liệu tới ESP32
+        s.sendall(b'Ping from Python\n')
+        # Nhận dữ liệu phản hồi từ ESP32
+        data = s.recv(1024)
+        print('Nhận từ ESP32:', data.decode().strip())
+        # Dừng 0.1 giây trước lần gửi tiếp theo
+        time.sleep(1)
+except KeyboardInterrupt:
+    print("Đóng kết nối...")
+finally:
+    s.close()
