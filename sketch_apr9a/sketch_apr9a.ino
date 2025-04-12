@@ -1,6 +1,7 @@
 #include <WiFi.h>
 #include <WiFiClient.h>
 #include <ArduinoJson.h>
+#include <math.h>
 // Thay đổi thông tin WiFi theo mạng của bạn
 const char* ssid = "Long Pho 20";
 const char* password = "tienlong94";
@@ -47,17 +48,27 @@ void loop() {
         StaticJsonDocument<200> doc;
         DeserializationError error = deserializeJson(doc, request);
         if (!error) {
-          float velocity = doc["velocity"];
+          float v_x = doc["v_x"];
+          float v_y = doc["v_y"];
           float startX = doc["start"][0];
           float startY = doc["start"][1];
           float goalX  = doc["goal"][0];
           float goalY  = doc["goal"][1];
-          Serial.printf("Vận tốc: %.2f\n", velocity);
+          Serial.printf("Vận tốc: (%.2f,%.2f)\n", v_x, v_y);
           Serial.printf("Điểm đầu: (%.2f, %.2f)\n", startX, startY);
           Serial.printf("Điểm cuối: (%.2f, %.2f)\n", goalX, goalY);
-
-          currentx += velocity * 0.1;
-          currenty += velocity * 0.1 ;
+          if (currentx == 0 && currenty == 0){
+            currentx = startX;
+            currenty = startY;
+          }
+          if (abs(goalX-currentx)<v_x*0.2 && abs(goalY-currenty)< v_y*0.2){
+            currentx = goalX;
+            currenty = goalY;
+          }
+          else{
+            currentx += v_x * 0.2 ;
+            currenty += v_y * 0.2 ;
+          }
           StaticJsonDocument<100> responseDoc;
           responseDoc["x"] = currentx;
           responseDoc["y"] = currenty;

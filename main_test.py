@@ -1,5 +1,5 @@
 import sys
-import math
+import math, socket, json, time, struct
 from PyQt5 import QtWidgets, QtCore, QtGui
 from PyQt5.QtWidgets import QApplication, QMainWindow, QGraphicsView, QGraphicsScene
 from Mapping import MapProcessing
@@ -8,6 +8,16 @@ from gui1 import Ui_MainWindow
 from PyQt5.QtGui import QPen, QPolygonF, QFont
 from PyQt5.QtCore import Qt, QPointF, QPropertyAnimation, QSequentialAnimationGroup, QPointF, QEasingCurve, QTimer
 from AddMovingObject import MovingCompositeObject
+
+def recvall(sock, n):
+    """Nhận đủ n byte từ socket."""
+    data = b""
+    while len(data) < n:
+        packet = sock.recv(n - len(data))
+        if not packet:
+            return None  # Nếu kết nối bị đóng
+        data += packet
+    return data
 
 class CustomGraphicsView(QGraphicsView):
     def __init__(self, parent=None):
@@ -236,6 +246,13 @@ class MainWindow:
         if not hasattr(self, 'moving_obj') or len(path) == 0:
             return
 
+        HOST = "192.168.1.38"  # Địa chỉ IP của ESP32
+        PORT = 80              # Cổng mà ESP32 đang lắng nghe
+        # Tạo socket TCP
+        client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client.connect((HOST, PORT))
+        print("Đã kết nối đến ESP32")
+        
         center_offset = QPointF(self.moving_obj.boundingRect().width() / 2,
                                 self.moving_obj.boundingRect().height() / 2)
 
@@ -294,22 +311,56 @@ class MainWindow:
                 distance = math.hypot(direction.x(), direction.y())
 
                 if distance != 0:
-                    unit_direction = QPointF(direction.x() / distance, direction.y() / distance)
+                    v_x = v_desired * direction.x()/distance
+                    v_y = v_desired * direction.y()/distance
                 else:
-                    unit_direction = QPointF(0, 0)
+                    v_x = 0
+                    v_y = 0
 
-                move_distance = v_desired * 0.1
+                control_data = {
+                "v_x": v_x,
+                "v_y": v_y,
+                "start": [start_point.x(),start_point.y()],
+                "goal":  [end_point.x(),end_point.y()]
+                }
+                json_data = json.dumps(control_data)
+                client.sendall((json_data + "\n").encode('utf-8'))
+                print(" da gui:", json_data)
+                try:
+                    client.settimeout(5.0)
+                    header = recvall(client, 4)
+                    if header is None:
+                        print("Kết nối bị đóng khi nhận header.")
+
+                    # Giải mã header theo network byte order ("!I" định dạng số nguyên 4 byte)
+                    msg_length = struct.unpack("!I", header)[0]
+
+                    # Nhận nội dung JSON theo độ dài vừa có được
+                    json_payload = recvall(client, msg_length)
+                    if json_payload is None:
+                        print("Kết nối bị đóng khi nhận payload.")
+
+                    response_data = json.loads(json_payload.decode("utf-8"))
+                    print("Vị trí hiện tại của robot:")
+                    print("  x =", response_data["x"])
+                    print("  y =", response_data["y"])
+                    self.moving_obj.setPos(QPointF(response_data["x"], response_data["y"]))
+                    
+                except socket.timeout:
+                    print(" Khong nhan phan hoi.")
+
+                move_distance = v_desired * 0.2
                 if d_remain <= move_distance:
                     self.moving_obj.setPos(end_point)
                     move_step(index + 1)
                 else:
-                    new_pos = current_pos + QPointF(unit_direction.x() * move_distance,
-                                                    unit_direction.y() * move_distance)
-                    self.moving_obj.setPos(new_pos)
-                    QTimer.singleShot(100, step)
+                    QTimer.singleShot(200, step)
             step_angle()  # Bắt đầu animation
 
         move_step(1)  # Bắt đầu từ điểm thứ hai
+        if (abs(self.moving_obj.pos().x() - path[-1][0]) < 1) and (abs(self.moving_obj.pos().y() - path[-1][1]) < 1) :
+            client.close()
+            print(" da dong ket noi.")
     
 if __name__ =="__main__":
         app = QApplication(sys.argv)
