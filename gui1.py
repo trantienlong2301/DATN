@@ -14,11 +14,11 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 class Ui_MainWindow(object):
     def setupUi(self, MainWindow):
         MainWindow.setObjectName("MainWindow")
-        MainWindow.resize(1600, 900)
+        MainWindow.resize(1887, 900)
         self.centralwidget = QtWidgets.QWidget(MainWindow)
         self.centralwidget.setObjectName("centralwidget")
         self.widget = QtWidgets.QWidget(self.centralwidget)
-        self.widget.setGeometry(QtCore.QRect(500, 0, 1000, 870))
+        self.widget.setGeometry(QtCore.QRect(370, 0, 1511, 870))
         self.widget.setObjectName("widget")
         self.SetUp = QtWidgets.QPushButton(self.centralwidget)
         self.SetUp.setGeometry(QtCore.QRect(30, 180, 131, 71))
@@ -50,9 +50,15 @@ class Ui_MainWindow(object):
         self.Load_dxf = QtWidgets.QPushButton(self.centralwidget)
         self.Load_dxf.setGeometry(QtCore.QRect(200, 40, 111, 41))
         self.Load_dxf.setObjectName("Load_dxf")
+        self.animated = QtWidgets.QPushButton(self.centralwidget)
+        self.animated.setGeometry(QtCore.QRect(50, 300, 93, 28))
+        self.animated.setObjectName("animated")
+        self.continue_2 = QtWidgets.QPushButton(self.centralwidget)
+        self.continue_2.setGeometry(QtCore.QRect(210, 300, 93, 28))
+        self.continue_2.setObjectName("continue_2")
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QtWidgets.QMenuBar(MainWindow)
-        self.menubar.setGeometry(QtCore.QRect(0, 0, 1600, 26))
+        self.menubar.setGeometry(QtCore.QRect(0, 0, 1887, 26))
         self.menubar.setObjectName("menubar")
         MainWindow.setMenuBar(self.menubar)
         self.statusbar = QtWidgets.QStatusBar(MainWindow)
@@ -75,6 +81,8 @@ class Ui_MainWindow(object):
         self.ReClock.setText(_translate("MainWindow", "CounterClock"))
         self.Select.setText(_translate("MainWindow", "Select"))
         self.Load_dxf.setText(_translate("MainWindow", "Load Map"))
+        self.animated.setText(_translate("MainWindow", "animate"))
+        self.continue_2.setText(_translate("MainWindow", "continue"))
 
 
 if __name__ == "__main__":

@@ -60,7 +60,8 @@ class MainWindow:
         self.uic.ReClock.clicked.connect(self.rotate_counterclockwise)
         self.uic.Select.clicked.connect(self.find_path)
         self.uic.Load_dxf.clicked.connect(self.load_dxf_file)
-        
+        self.uic.animated.clicked.connect(self.animate_moving_object1)
+        self.uic.continue_2.clicked.connect(self.resume_next_segment)
         # tạo graphics trên widget
         layout = QtWidgets.QVBoxLayout(self.uic.widget)
         self.graphicsView = CustomGraphicsView(self.uic.widget)
@@ -140,27 +141,22 @@ class MainWindow:
         if self.is_setup_active:
             if hasattr(self, 'moving_obj'):
                 self.moving_obj.setPos(self.moving_obj.pos() + QPointF(0, -100))  # Move up by 10 units
-
     def move_down(self):
         if self.is_setup_active:
             if hasattr(self, 'moving_obj'):
                 self.moving_obj.setPos(self.moving_obj.pos() + QPointF(0, 100))  # Move down by 10 units
-
     def move_left(self):
         if self.is_setup_active:
             if hasattr(self, 'moving_obj'):
                 self.moving_obj.setPos(self.moving_obj.pos() + QPointF(-100, 0))  # Move left by 10 units
-
     def move_right(self):
         if self.is_setup_active:
             if hasattr(self, 'moving_obj'):
                 self.moving_obj.setPos(self.moving_obj.pos() + QPointF(100, 0))  # Move right by 10 units
-
     def rotate_clockwise(self):
         if self.is_setup_active:
             if hasattr(self, 'moving_obj'):
                 self.moving_obj.setRotation(self.moving_obj.rotation() - 10)  # Rotate clockwise by 10 degrees
-
     def rotate_counterclockwise(self):
         if self.is_setup_active:
             if hasattr(self, 'moving_obj'):
@@ -206,9 +202,7 @@ class MainWindow:
             print("chưa chọn điểm đích")
         else:
             print(f"Selected goals: {self.selected_goals}")
-        if self.select_count == 0:
-            self.uic.Select.setText("animation")
-            self.select_count +=1
+        
             self.is_goal_active = False
             self.uic.Goal.setStyleSheet("") 
             self.is_setup_active = False
@@ -218,32 +212,141 @@ class MainWindow:
             if hasattr(self, 'moving_obj') and self.selected_goals:
                 start = (self.moving_obj.pos().x() + self.moving_obj.boundingRect().width() / 2,
                         self.moving_obj.pos().y() + self.moving_obj.boundingRect().height() / 2)
-                self.path_points = self.Mapprocessing.dijkstra_shortest_path(start, self.selected_goals[0])
+                self.path_points.append(self.Mapprocessing.dijkstra_shortest_path(start, self.selected_goals[0]))
                 for i in range(len(self.selected_goals) -1):
                     inter_path = self.Mapprocessing.dijkstra_shortest_path(self.selected_goals[i],self.selected_goals[i+1])
-                    del inter_path[0]
-                    self.path_points.extend(inter_path)
+                    self.path_points.append(inter_path)
                 print(f"Path: {self.path_points}")
                 self.display_path(self.path_points)
-        else:
-            self.select_count = 0
-            self.animate_moving_object(self.path_points)
-            self.uic.Select.setText("Select")
 
-    def display_path(self, path):  
+    def display_path(self, path_points):  
          # Xóa đường cũ trước khi vẽ đường mới
         for line in getattr(self, 'path_lines', []):
             self.scene.removeItem(line)
         self.path_lines = []  # Xóa danh sách cũ 
         pen_path = QPen(Qt.darkGreen, 50)
-        for i in range(len(path) - 1):
-            x1, y1 = path[i]
-            x2, y2 = path[i + 1]
-            line =  self.scene.addLine(x1, y1, x2, y2, pen_path)
-            self.path_lines.append(line)
+        for i in range(len(path_points)):
+            path = path_points[i]
+ 
+            for j in range(len(path)-1):
+                
+                x1, y1 = path[j]
+                x2, y2 = path[j + 1]
+                line =  self.scene.addLine(x1, y1, x2, y2, pen_path)
+                self.path_lines.append(line)
 
-    def animate_moving_object(self, path, speed=500,anguler_speed = 25):
-        if not hasattr(self, 'moving_obj') or len(path) == 0:
+    def resume_next_segment(self):
+        if self.resume_timer is not None:
+            self.resume_timer.stop()  # Dừng timer nếu đang chạy
+            self.resume_timer = None
+        if self.next_segment_callback:
+            self.next_segment_callback()
+            self.next_segment_callback = None
+
+    def animate_moving_object(self):
+            segments = self.path_points
+            if not hasattr(self, 'moving_obj') or len(segments) == 0:#Kiểm tra nếu không có moving_obj hoặc segments trống thì thoát hàm
+                return
+            # Tính offset để đảm bảo moving_obj được căn giữa theo boundingRect
+            center_offset = QPointF(self.moving_obj.boundingRect().width() / 2,
+                                    self.moving_obj.boundingRect().height() / 2)
+            # Các biến dùng để điều khiển việc chuyển sang đoạn tiếp theo
+            self.resume_timer = None
+            self.next_segment_callback = None
+            def animate_segment(seg_index):
+                if seg_index >= len(segments):
+                    return  # Đã hết các đoạn, dừng animation
+
+                segment = segments[seg_index]
+                # Nếu đoạn không đủ điểm để di chuyển, chuyển sang đoạn kế
+                if len(segment) < 2:
+                    wait_for_resume(seg_index + 1)
+                    return
+            # Định nghĩa hàm di chuyển từng bước
+                def move_step(index):
+                    if index >= len(segment):
+                         # Khi hoàn thành đoạn, tạm dừng 5s hoặc chờ nhấn nút để chuyển sang đoạn tiếp theo
+                        wait_for_resume(seg_index + 1)
+                        return  # Kết thúc hàm
+
+                    start_point = QPointF(segment[index - 1][0], segment[index - 1][1]) - center_offset
+                    end_point = QPointF(segment[index][0], segment[index][1]) - center_offset
+                    d_total = math.hypot(segment[index][0] - segment[index - 1][0], segment[index][1] - segment[index - 1][1])
+                    target_angle = math.degrees(math.atan2(segment[index][1] - segment[index - 1][1],segment[index][0] - segment[index - 1][0]))
+                    a = 500
+                    alpha = 25
+                    segment_start = start_point
+                    initial_angle = self.moving_obj.rotation()
+
+                    def step_angle():
+                        current_angle = self.moving_obj.rotation()
+                        angle_diff = target_angle - current_angle
+                        # Xác định hướng xoay: 1 nếu tăng, -1 nếu giảm
+                        sign = 1 if angle_diff > 0 else -1
+                        d_total_angle = abs(target_angle - initial_angle)
+                        d_travelled_angle = abs(current_angle - initial_angle)
+                        d_remaining_angle = abs(target_angle - current_angle)
+
+                        # Nếu góc cần xoay quá nhỏ, hoàn thành xoay và chuyển sang di chuyển
+                        if d_remaining_angle < 1:
+                            self.moving_obj.setRotation(target_angle)
+                            step()  # bắt đầu chuyển động
+                            return
+
+                        # Tính vận tốc góc mong muốn theo ba pha: gia tốc, tốc độ không đổi, giảm tốc
+                        v_desired_angle = min(math.sqrt(2 * alpha * d_travelled_angle) if d_travelled_angle > 0 else 1,
+                                            50,
+                                            math.sqrt(2 * alpha * d_remaining_angle))
+                        angular_step = v_desired_angle * 0.1
+
+                        if d_remaining_angle <= angular_step:
+                            self.moving_obj.setRotation(target_angle)
+                            step()  # chuyển sang bước di chuyển khi đã xoay đủ
+                        else:
+                            new_angle = current_angle + sign * angular_step
+                            self.moving_obj.setRotation(new_angle)
+                            QTimer.singleShot(100, step_angle)
+
+                    def step():
+                        current_pos = self.moving_obj.pos()
+                        d_travelled = math.hypot(current_pos.x() - segment_start.x(), current_pos.y() - segment_start.y())
+                        d_remain = d_total - d_travelled
+                        v_desired = min(math.sqrt(2 * a * d_travelled) if d_travelled > 0 else 50,
+                                    1000,
+                                    math.sqrt(2 * a * d_remain) if d_remain > 0 else 50)
+                        direction = (end_point - current_pos)
+                        distance = math.hypot(direction.x(), direction.y())
+                        if distance != 0:
+                            unit_direction = QPointF(direction.x() / distance, direction.y() / distance)
+                        else:
+                            unit_direction = QPointF(0, 0)
+                        move_distance = v_desired * 0.1
+                        if d_remain <= move_distance:
+                            self.moving_obj.setPos(end_point)
+                            move_step(index + 1)
+                        else:
+                            new_pos = current_pos + QPointF(unit_direction.x() * move_distance,
+                                                            unit_direction.y() * move_distance)
+                            self.moving_obj.setPos(new_pos)
+                            QTimer.singleShot(100, step)
+                    step_angle()  # Bắt đầu animation
+
+                move_step(1)  # Bắt đầu từ điểm thứ hai
+            def wait_for_resume(next_seg_index):
+                # Lưu lại callback chuyển sang đoạn tiếp theo
+                self.next_segment_callback = lambda: animate_segment(next_seg_index)
+                # Sử dụng QTimer để đợi 5 giây
+                self.resume_timer = QTimer()
+                self.resume_timer.setSingleShot(True)
+                self.resume_timer.timeout.connect(self.next_segment_callback)
+                self.resume_timer.start(5000)
+
+            # Bắt đầu animate với đoạn đầu tiên
+            animate_segment(0)
+
+    def animate_moving_object1(self):
+        segments = self.path_points
+        if not hasattr(self, 'moving_obj') or len(segments) == 0:#Kiểm tra nếu không có moving_obj hoặc segments trống thì thoát hàm
             return
 
         HOST = "192.168.1.38"  # Địa chỉ IP của ESP32
@@ -255,112 +358,140 @@ class MainWindow:
         
         center_offset = QPointF(self.moving_obj.boundingRect().width() / 2,
                                 self.moving_obj.boundingRect().height() / 2)
+        # Các biến dùng để điều khiển việc chuyển sang đoạn tiếp theo
+        self.resume_timer = None
+        self.next_segment_callback = None
 
         # Định nghĩa hàm di chuyển từng bước
-        def move_step(index):
-            if index >= len(path):
-                return  # Kết thúc animation
+        def animate_segment(seg_index):
+            if (abs(self.moving_obj.pos().x() + center_offset.x() - self.path_points[-1][-1][0]) < 10) and (abs(self.moving_obj.pos().y() + center_offset.y() - self.path_points[-1][-1][1]) < 10) :
+                client.close()
+                print(" da dong ket noi.")
+            if seg_index >= len(segments): 
+                return  # Đã hết các đoạn, dừng animation
 
-            start_point = QPointF(path[index - 1][0], path[index - 1][1]) - center_offset
-            end_point = QPointF(path[index][0], path[index][1]) - center_offset
-            d_total = math.hypot(path[index][0] - path[index - 1][0], path[index][1] - path[index - 1][1])
-            target_angle = math.degrees(math.atan2(path[index][1] - path[index - 1][1],path[index][0] - path[index - 1][0]))
-            
-            a = speed
-            alpha = anguler_speed
-            segment_start = start_point
-            initial_angle = self.moving_obj.rotation()
+            segment = segments[seg_index]
+            # Nếu đoạn không đủ điểm để di chuyển, chuyển sang đoạn kế
+            if len(segment) < 2:
+                wait_for_resume(seg_index + 1)
+                return
+            def move_step(index):
+                if index >= len(segment):
+                    # Khi hoàn thành đoạn, tạm dừng 5s hoặc chờ nhấn nút để chuyển sang đoạn tiếp theo
+                    wait_for_resume(seg_index + 1)
+                    return  # Kết thúc animation
 
-            def step_angle():
-                current_angle = self.moving_obj.rotation()
-                angle_diff = target_angle - current_angle
-                # Xác định hướng xoay: 1 nếu tăng, -1 nếu giảm
-                sign = 1 if angle_diff > 0 else -1
-                d_total_angle = abs(target_angle - initial_angle)
-                d_travelled_angle = abs(current_angle - initial_angle)
-                d_remaining_angle = abs(target_angle - current_angle)
+                start_point = QPointF(segment[index - 1][0], segment[index - 1][1]) - center_offset
+                end_point = QPointF(segment[index][0], segment[index][1]) - center_offset
+                d_total = math.hypot(segment[index][0] - segment[index - 1][0], segment[index][1] - segment[index - 1][1])
+                target_angle = math.degrees(math.atan2(segment[index][1] - segment[index - 1][1],segment[index][0] - segment[index - 1][0]))
+                print("start: ",start_point)
+                print("end: ",end_point)
+                a = 500
+                alpha = 25
+                segment_start = start_point
+                initial_angle = self.moving_obj.rotation()
 
-                # Nếu góc cần xoay quá nhỏ, hoàn thành xoay và chuyển sang di chuyển
-                if d_remaining_angle < 1:
-                    self.moving_obj.setRotation(target_angle)
-                    step()  # bắt đầu chuyển động
-                    return
+                def step_angle():
+                    current_angle = self.moving_obj.rotation()
+                    angle_diff = target_angle - current_angle
+                    # Xác định hướng xoay: 1 nếu tăng, -1 nếu giảm
+                    sign = 1 if angle_diff > 0 else -1
+                    d_total_angle = abs(target_angle - initial_angle)
+                    d_travelled_angle = abs(current_angle - initial_angle)
+                    d_remaining_angle = abs(target_angle - current_angle)
 
-                # Tính vận tốc góc mong muốn theo ba pha: gia tốc, tốc độ không đổi, giảm tốc
-                v_desired_angle = min(math.sqrt(2 * alpha * d_travelled_angle) if d_travelled_angle > 0 else 1,
-                                    50,
-                                    math.sqrt(2 * alpha * d_remaining_angle))
-                angular_step = v_desired_angle * 0.1
+                    # Nếu góc cần xoay quá nhỏ, hoàn thành xoay và chuyển sang di chuyển
+                    if d_remaining_angle < 1:
+                        self.moving_obj.setRotation(target_angle)
+                        step()  # bắt đầu chuyển động
+                        return
 
-                if d_remaining_angle <= angular_step:
-                    self.moving_obj.setRotation(target_angle)
-                    step()  # chuyển sang bước di chuyển khi đã xoay đủ
-                else:
-                    new_angle = current_angle + sign * angular_step
-                    self.moving_obj.setRotation(new_angle)
-                    QTimer.singleShot(100, step_angle)
+                    # Tính vận tốc góc mong muốn theo ba pha: gia tốc, tốc độ không đổi, giảm tốc
+                    v_desired_angle = min(math.sqrt(2 * alpha * d_travelled_angle) if d_travelled_angle > 0 else 1,
+                                        50,
+                                        math.sqrt(2 * alpha * d_remaining_angle))
+                    angular_step = v_desired_angle * 0.1
 
-            def step():
-                current_pos = self.moving_obj.pos()
-                d_travelled = math.hypot(current_pos.x() - segment_start.x(), current_pos.y() - segment_start.y())
-                d_remain = d_total - d_travelled
-                v_desired = min(math.sqrt(2 * a * d_travelled) if d_travelled > 0 else speed,
-                            1000,
-                            math.sqrt(2 * a * d_remain) if d_remain > 0 else speed)
-                direction = (end_point - current_pos)
-                distance = math.hypot(direction.x(), direction.y())
+                    if d_remaining_angle <= angular_step:
+                        self.moving_obj.setRotation(target_angle)
+                        step()  # chuyển sang bước di chuyển khi đã xoay đủ
+                    else:
+                        new_angle = current_angle + sign * angular_step
+                        self.moving_obj.setRotation(new_angle)
+                        QTimer.singleShot(100, step_angle)
 
-                if distance != 0:
-                    v_x = v_desired * direction.x()/distance
-                    v_y = v_desired * direction.y()/distance
-                else:
-                    v_x = 0
-                    v_y = 0
+                def step():
+                    current_pos = self.moving_obj.pos()
+                    d_travelled = math.hypot(current_pos.x() - segment_start.x(), current_pos.y() - segment_start.y())
+                    d_remain = d_total - d_travelled
+                    v_desired = min(math.sqrt(2 * a * d_travelled) if d_travelled > 0 else 50,
+                                1000,
+                                math.sqrt(2 * a * d_remain) if d_remain > 0 else 50)
+                    direction = (end_point - current_pos)
+                    distance = math.hypot(direction.x(), direction.y())
 
-                control_data = {
-                "v_x": v_x,
-                "v_y": v_y,
-                "start": [start_point.x(),start_point.y()],
-                "goal":  [end_point.x(),end_point.y()]
-                }
-                json_data = json.dumps(control_data)
-                client.sendall((json_data + "\n").encode('utf-8'))
-                print(" da gui:", json_data)
-                try:
-                    client.settimeout(5.0)
-                    header = recvall(client, 4)
-                    if header is None:
-                        print("Kết nối bị đóng khi nhận header.")
+                    if distance != 0:
+                        v_x = v_desired * direction.x()/distance
+                        v_y = v_desired * direction.y()/distance
+                    else:
+                        v_x = 0
+                        v_y = 0
 
-                    # Giải mã header theo network byte order ("!I" định dạng số nguyên 4 byte)
-                    msg_length = struct.unpack("!I", header)[0]
+                    control_data = {
+                    "v_x": v_x,
+                    "v_y": v_y,
+                    "start": [start_point.x(),start_point.y()],
+                    "goal":  [end_point.x(),end_point.y()]
+                    }
+                    json_data = json.dumps(control_data)
+                    client.sendall((json_data + "\n").encode('utf-8'))
+                    print(" da gui:", json_data)
+                    try:
+                        client.settimeout(5.0)
+                        header = recvall(client, 4)
+                        if header is None:
+                            print("Kết nối bị đóng khi nhận header.")
 
-                    # Nhận nội dung JSON theo độ dài vừa có được
-                    json_payload = recvall(client, msg_length)
-                    if json_payload is None:
-                        print("Kết nối bị đóng khi nhận payload.")
+                        # Giải mã header theo network byte order ("!I" định dạng số nguyên 4 byte)
+                        msg_length = struct.unpack("!I", header)[0]
 
-                    response_data = json.loads(json_payload.decode("utf-8"))
-                    print("Vị trí hiện tại của robot:")
-                    print("  x =", response_data["x"])
-                    print("  y =", response_data["y"])
-                    self.moving_obj.setPos(QPointF(response_data["x"], response_data["y"]))
-                    
-                except socket.timeout:
-                    print(" Khong nhan phan hoi.")
+                        # Nhận nội dung JSON theo độ dài vừa có được
+                        json_payload = recvall(client, msg_length)
+                        if json_payload is None:
+                            print("Kết nối bị đóng khi nhận payload.")
 
-                move_distance = v_desired * 0.2
-                if d_remain <= move_distance:
-                    self.moving_obj.setPos(end_point)
-                    move_step(index + 1)
-                else:
-                    QTimer.singleShot(200, step)
-            step_angle()  # Bắt đầu animation
+                        response_data = json.loads(json_payload.decode("utf-8"))
+                        print("Vị trí hiện tại của robot:")
+                        print("  x =", response_data["x"])
+                        print("  y =", response_data["y"])
+                        self.moving_obj.setPos(QPointF(response_data["x"], response_data["y"]))
+                        
+                    except socket.timeout:
+                        print(" Khong nhan phan hoi.")
 
-        move_step(1)  # Bắt đầu từ điểm thứ hai
-        if (abs(self.moving_obj.pos().x() - path[-1][0]) < 1) and (abs(self.moving_obj.pos().y() - path[-1][1]) < 1) :
-            client.close()
-            print(" da dong ket noi.")
+                    move_distance = v_desired * 0.2
+                    if d_remain <= move_distance:
+                        self.moving_obj.setPos(end_point)
+                        move_step(index + 1)
+                    else:
+                        QTimer.singleShot(200, step)
+                step_angle()  # Bắt đầu animation
+
+            move_step(1)  # Bắt đầu từ điểm thứ hai
+        def wait_for_resume(next_seg_index):
+            # Lưu lại callback chuyển sang đoạn tiếp theo
+            self.next_segment_callback = lambda: animate_segment(next_seg_index)
+            # Sử dụng QTimer để đợi 5 giây
+            self.resume_timer = QTimer()
+            self.resume_timer.setSingleShot(True)
+            self.resume_timer.timeout.connect(self.next_segment_callback)
+            self.resume_timer.start(5000)
+
+        # Bắt đầu animate với đoạn đầu tiên
+        animate_segment(0)  
+
+        
     
 if __name__ =="__main__":
         app = QApplication(sys.argv)
