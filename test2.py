@@ -23,6 +23,7 @@ print("Đã kết nối đến ESP32")
 buffer = ""
 try:
     while True:
+        receive_time = time.time()
         start = [0,0]
         goal = [1000, 1000]
         d_travelled = math.hypot(current_position[0]-start[0],current_position[1]-start[1])
@@ -45,6 +46,8 @@ try:
         print(" da gui:", json_data)
         # Ghi nhận thời gian gửi
         send_time = time.time()
+        elapsed_time = send_time - receive_time
+        print("time1: ",elapsed_time)
         # Nhận phản hồi từ ESP32 (nếu có)
         try:
             client.settimeout(2.0)
@@ -61,13 +64,13 @@ try:
             if json_payload is None:
                 print("Kết nối bị đóng khi nhận payload.")
                 break
-
- # Ghi nhận thời gian nhận dữ liệu
             receive_time = time.time()
 
             # Tính thời gian phản hồi
             elapsed_time = receive_time - send_time
-            print("time: ",elapsed_time)
+            print("time2: ",elapsed_time)
+
+            
             response_data = json.loads(json_payload.decode("utf-8"))
             print("Vị trí hiện tại của robot:")
             print("  x =", response_data["x"])

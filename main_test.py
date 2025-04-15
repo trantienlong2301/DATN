@@ -60,7 +60,7 @@ class MainWindow:
         self.uic.ReClock.clicked.connect(self.rotate_counterclockwise)
         self.uic.Select.clicked.connect(self.find_path)
         self.uic.Load_dxf.clicked.connect(self.load_dxf_file)
-        self.uic.animated.clicked.connect(self.animate_moving_object1)
+        self.uic.animated.clicked.connect(self.animate_moving_object)
         self.uic.continue_2.clicked.connect(self.resume_next_segment)
         # tạo graphics trên widget
         layout = QtWidgets.QVBoxLayout(self.uic.widget)
@@ -475,7 +475,7 @@ class MainWindow:
                         self.moving_obj.setPos(end_point)
                         move_step(index + 1)
                     else:
-                        QTimer.singleShot(200, step)
+                        QTimer.singleShot(5, step)
                 step_angle()  # Bắt đầu animation
 
             move_step(1)  # Bắt đầu từ điểm thứ hai

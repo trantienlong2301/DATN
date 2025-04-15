@@ -187,9 +187,9 @@ class MapProcessing:
         path.append(start)
         path.reverse()
         #path = self.remove_collinear_points(path)
-        path = self.smoothPath(path)
-        path[0] = start_old
-        path[-1] = end_old
+        # path = self.smoothPath(path)
+        # path[0] = start_old
+        # path[-1] = end_old
         return path
     
     def findClosestGridCenter(self, point):
@@ -257,56 +257,7 @@ class MapProcessing:
         smoothed_path.append(path[-1])
         return smoothed_path
 
-    # def A_star_shortest_path(self, start_old, end_old):
-    #     start = self.findClosestGridCenter(start_old)
-    #     end = self.findClosestGridCenter(end_old)
-    #     weights = defaultdict(lambda: float('inf'))
-    #     heuristic = defaultdict(lambda: float('inf'))
-    #     weights[start] = 0
-    #     priority_queue = [(0, start)]
-    #     previous = {}
-    #     for cell in self.grid:
-    #         heuristic[cell] = self.countPointsInRectangle(cell,end)  * self._distance(cell,end)
-    #     while priority_queue:
-    #         current_weight, current_vertex = heapq.heappop(priority_queue)
-    #         if current_vertex == end:
-    #             break
-
-    #         for neighbor in self.getNeighbors(current_vertex):
-    #             new_weight = current_weight + self._distance(current_vertex, neighbor) + heuristic[neighbor]
-    #             if new_weight < weights[neighbor]:
-    #                 weights[neighbor] = new_weight
-    #                 previous[neighbor] = current_vertex
-    #                 heapq.heappush(priority_queue, (new_weight, neighbor))
-
-    #     path = []
-    #     current_vertex = end
-    #     while current_vertex != start:
-    #         path.append(current_vertex)
-    #         current_vertex = previous[current_vertex]
-    #     path.append(start)
-    #     path.reverse()
-    #     return path
     
-    # def countPointsInRectangle(self, point1, point2):
-    #     # Extract the coordinates from the points
-    #     x1, y1 = point1
-    #     x2, y2 = point2
-        
-    #     # Ensure x1, y1 is the top-left and x2, y2 is the bottom-right
-    #     top_left = (min(x1, x2), min(y1, y2))
-    #     bottom_right = (max(x1, x2), max(y1, y2))
-        
-    #     count = 0
-    #     # Count the points within the rectangle
-    #     for x in range(top_left[0], bottom_right[0] + 1,200):
-    #         for y in range(top_left[1], bottom_right[1] + 1,200):
-    #             if (x, y) in self.grid:
-    #                 count += 1
-    #     sum = ((bottom_right[0] - top_left[0])/200+1) * ((bottom_right[1] - top_left[1])/200+1)
-    #     proprotion = 1 - count/sum
-    #     return exp(proprotion)
-
 if __name__ == "__main__":
     #visualizer = MapProcessing("E:/da_khoa_truoc/AGV_DATN2024/AGVs/Func/Map/Map1.dxf")
     visualizer = MapProcessing("C:/Users/Admin/Desktop/draw1.dxf")
