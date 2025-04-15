@@ -74,6 +74,7 @@ class MainWindow:
         self.uic.continue_2.clicked.connect(self.resume_next_segment)
         self.uic.Erase.clicked.connect(self.Erase)
         self.uic.AddLine.clicked.connect(self.AddLine)
+        self.uic.Update.clicked.connect(self.Update)
         # tạo graphics trên widget
         layout = QtWidgets.QVBoxLayout(self.uic.widget)
         self.graphicsView = CustomGraphicsView(self.uic.widget)
@@ -92,6 +93,7 @@ class MainWindow:
         self.current_circle = None
         self.path_points = []
         self.path_lines = []
+        self.add_line_items = []
         self.select_count = 0
 
     def load_dxf_file(self):
@@ -274,9 +276,9 @@ class MainWindow:
             self.graphicsView.eraseSelected_points()
             if hasattr(self, 'moving_obj') and self.selected_goals:
                 self.path_points = []
-                start = (self.moving_obj.pos().x() + self.moving_obj.boundingRect().width() / 2,
+                self.start = (self.moving_obj.pos().x() + self.moving_obj.boundingRect().width() / 2,
                         self.moving_obj.pos().y() + self.moving_obj.boundingRect().height() / 2)
-                self.path_points.append(self.Mapprocessing.dijkstra_shortest_path(start, self.selected_goals[0]))
+                self.path_points.append(self.Mapprocessing.dijkstra_shortest_path(self.start, self.selected_goals[0]))
                 for i in range(len(self.selected_goals) -1):
                     inter_path = self.Mapprocessing.dijkstra_shortest_path(self.selected_goals[i],self.selected_goals[i+1])
                     self.path_points.append(inter_path)
@@ -356,6 +358,7 @@ class MainWindow:
             if min_distance < 50:
                 # Xóa highlight cũ nếu có
                 self.scene.removeItem(nearest_line)
+                self.path_lines.remove(nearest_line)
 
     def distanceToLine(self, point, x1, y1, x2, y2):
         import math
@@ -391,6 +394,7 @@ class MainWindow:
         self.graphicsView.pointsSelectedCallback = self.removePathLine
 
     def AddLine(self):
+        self.add_line_items = []
         self.versus = []
         self.graphicsView.flagRemoveLine = True
         self.graphicsView.gridHighlightCallback = self.highlightGridPoint
@@ -416,7 +420,76 @@ class MainWindow:
             #print(self.grid_point_item[i])
             if len(self.versus) == 2:
                 line =  self.scene.addLine(self.versus[0][0], self.versus[0][1], self.versus[1][0],self.versus[1][1], pen_path)
+                self.add_line_items.append(line)
                 self.versus = []
+
+    def Update(self):
+        if not self.path_lines or not self.add_line_items:
+            return
+        self.path_points = []
+        inter_path = []
+        path_line = self.path_lines + self.add_line_items
+        start = self.Mapprocessing.findClosestGridCenter(self.start)
+        end = self.Mapprocessing.findClosestGridCenter(self.selected_goals[-1])
+        for line in path_line:
+            (x1,y1) = (line.line().p1().x(),line.line().p1().y())
+            (x2,y2) = (line.line().p2().x(),line.line().p2().y())
+            if (x1,y1) not in inter_path:
+                inter_path.append((x1,y1))
+            if (x2,y2) not in inter_path:
+                inter_path.append((x2,y2))
+        length = len(inter_path)
+        inter_path2 = [[] for _ in range(length)]
+        for line in path_line:
+            x1, y1 = line.line().p1().x(), line.line().p1().y()
+            x2, y2 = line.line().p2().x(), line.line().p2().y()
+            try:
+                i1 = inter_path.index((x1, y1))
+                i2 = inter_path.index((x2, y2))
+            except ValueError:
+                continue
+            if (x2, y2) not in inter_path2[i1]:
+                inter_path2[i1].append((x2, y2))
+            if (x1, y1) not in inter_path2[i2]:
+                inter_path2[i2].append((x1, y1))
+        # Hàm DFS để tìm đường đi từ start đến end trên đồ thị các điểm
+        def dfs(current, end, path, visited):
+            if current == end:
+                return path
+            visited.add(current)
+            # Tìm index của current trong inter_path để lấy các điểm kề
+            try:
+                index = inter_path.index(current)
+            except ValueError:
+                return None
+            for neighbor in inter_path2[index]:
+                if neighbor not in visited:
+                    result = dfs(neighbor, end, path + [neighbor], visited)
+                    if result is not None:
+                        return result
+            return None
+
+        # Tìm đường đi (danh sách các điểm nối liền)
+        path_mid = dfs(start, end, [start], set())
+        if path_mid is None:
+            print("Không tìm được đường đi từ start đến end.")
+            return
+
+        # Giả sử bạn có nhiều điểm mục tiêu (selected_goals) cần nối theo thứ tự
+        # Ở đây, ta duyệt theo path_mid và chia nhỏ đường đi khi gặp điểm trong selected_goals
+        mid = []
+        for point in path_mid:
+            mid.append(point)
+            if point in self.selected_goals:
+                # Khi gặp một mục tiêu, lưu lại đường đi tạm (ngoại trừ điểm mục tiêu đó) rồi reset mid
+                self.path_points.append(mid)
+                mid = [point]
+        # Nếu còn phần dư, thêm vào cuối
+        if mid:
+            self.path_points.append(mid)
+
+        print("Cập nhật self.path_points:", self.path_points)
+
 
     def resume_next_segment(self):
         if self.resume_timer is not None:
