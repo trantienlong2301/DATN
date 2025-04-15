@@ -56,6 +56,12 @@ class Ui_MainWindow(object):
         self.continue_2 = QtWidgets.QPushButton(self.centralwidget)
         self.continue_2.setGeometry(QtCore.QRect(210, 300, 93, 28))
         self.continue_2.setObjectName("continue_2")
+        self.Erase = QtWidgets.QPushButton(self.centralwidget)
+        self.Erase.setGeometry(QtCore.QRect(50, 120, 93, 28))
+        self.Erase.setObjectName("Erase")
+        self.AddLine = QtWidgets.QPushButton(self.centralwidget)
+        self.AddLine.setGeometry(QtCore.QRect(210, 120, 93, 28))
+        self.AddLine.setObjectName("AddLine")
         MainWindow.setCentralWidget(self.centralwidget)
         self.menubar = QtWidgets.QMenuBar(MainWindow)
         self.menubar.setGeometry(QtCore.QRect(0, 0, 1887, 26))
@@ -83,6 +89,8 @@ class Ui_MainWindow(object):
         self.Load_dxf.setText(_translate("MainWindow", "Load Map"))
         self.animated.setText(_translate("MainWindow", "animate"))
         self.continue_2.setText(_translate("MainWindow", "continue"))
+        self.Erase.setText(_translate("MainWindow", "Erase"))
+        self.AddLine.setText(_translate("MainWindow", "AddLine"))
 
 
 if __name__ == "__main__":

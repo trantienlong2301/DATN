@@ -23,20 +23,30 @@ class CustomGraphicsView(QGraphicsView):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.selected_points = []
+        self.flagRemoveLine = None
         self.pointsSelectedCallback = None  
+        self.gridHighlightCallback = None
     
     def eraseSelected_points (self):
         self.selected_points = []
-    def mousePressEvent(self, event):
-        
+
+    def mousePressEvent(self, event):        
         if event.button() == Qt.LeftButton:
             scene_pos = self.mapToScene(event.pos())
 
-            if self.pointsSelectedCallback:
+            if self.pointsSelectedCallback and self.flagRemoveLine is None:
                 print(f"Chọn điểm: ({scene_pos.x()}, {scene_pos.y()})")
                 self.selected_points.append([scene_pos.x(), scene_pos.y()])
                 self.pointsSelectedCallback(self.selected_points)
+            if self.pointsSelectedCallback and self.flagRemoveLine:
+                self.pointsSelectedCallback(scene_pos)
         super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        scene_pos = self.mapToScene(event.pos())
+        if self.gridHighlightCallback:
+            self.gridHighlightCallback(scene_pos)
+        super().mouseMoveEvent(event)
 
     def wheelEvent(self, event):
         # Phóng to hoặc thu nhỏ bản đồ
@@ -62,13 +72,19 @@ class MainWindow:
         self.uic.Load_dxf.clicked.connect(self.load_dxf_file)
         self.uic.animated.clicked.connect(self.animate_moving_object)
         self.uic.continue_2.clicked.connect(self.resume_next_segment)
+        self.uic.Erase.clicked.connect(self.Erase)
+        self.uic.AddLine.clicked.connect(self.AddLine)
         # tạo graphics trên widget
         layout = QtWidgets.QVBoxLayout(self.uic.widget)
         self.graphicsView = CustomGraphicsView(self.uic.widget)
         layout.addWidget(self.graphicsView)
         self.scene = QtWidgets.QGraphicsScene()
         self.graphicsView.setScene(self.scene)
-
+        # Thiết lập callback cho sự kiện di chuyển chuột
+        self.graphicsView.gridHighlightCallback = self.highlightGridPoint
+        self.current_highlighted_point = None  
+        self.current_highlighted_line = None # Đối tượng đang được highlight
+        self.grid_point_item = []
         self.is_goal_active = False
         self.moving_obj_unactive = True
         self.is_setup_active = False  # Track the state of the SetUp button
@@ -88,6 +104,54 @@ class MainWindow:
             self.Mapprocessing.workingCoordinates()
 
         self.draw_dxf()
+
+    def draw_grid(self):
+        #Vẽ lưới (grid) được tạo bởi MapProcessing lên scene."""
+        if not hasattr(self, 'Mapprocessing'):
+            return
+
+        # Tạo bút vẽ cho lưới với đường nét đứt, màu xám
+        pen_grid = QPen(Qt.gray, 2, Qt.DashLine)
+        self.grid_point_item = self.Mapprocessing.gridalter
+        # Giả sử mỗi ô có kích thước 200x200 như đã sử dụng khi tạo lưới,
+        # vẽ một hình chữ nhật cho mỗi ô.
+        for cell in self.Mapprocessing.gridalter:
+            x, y = cell
+            if (x+200,y+200)  in self.Mapprocessing.gridalter:
+                rect = QtCore.QRectF(x, y, 200, 200)
+            else:
+                continue
+            self.scene.addRect(rect, pen_grid)
+
+    def highlightGridPoint(self, scene_pos):
+        if not hasattr(self, 'Mapprocessing') or not hasattr(self, 'grid_point_item'):
+            return
+        
+        min_distance = float('inf')
+        nearest_index = -1
+        
+        # Tìm điểm có khoảng cách nhỏ nhất đến vị trí chuột
+        for i, point in enumerate(self.grid_point_item):
+            # Giả sử mỗi điểm trong grid là tọa độ trung tâm của ô
+            distance = math.hypot(scene_pos.x() - point[0], scene_pos.y() - point[1])
+            if distance < min_distance:
+                min_distance = distance
+                nearest_index = i
+
+        if nearest_index != -1:
+            # Reset lại điểm đã được highlight trước đó nếu có
+            if self.current_highlighted_point is not None:
+                self.scene.removeItem(self.current_highlighted_point)
+                self.current_highlighted_point = None
+
+            # Highlight điểm mới: thay đổi màu sang vàng (có thể thay đổi kích thước nếu muốn)
+            circle = self.scene.addEllipse(
+                self.grid_point_item[nearest_index][0] - 50,  # X tọa độ góc trên bên trái
+                self.grid_point_item[nearest_index][1] - 50,  # Y tọa độ góc trên bên trái
+                100, 100,  # Chiều rộng và chiều cao (hình tròn có đường kính 500)
+                QPen(Qt.green, 20)  # Màu viền xanh lá và độ dày 20px
+            )
+            self.current_highlighted_point = circle
 
     def draw_dxf(self):
         if self.Mapprocessing.dwg is None:
@@ -110,10 +174,10 @@ class MainWindow:
             text_item.setDefaultTextColor(Qt.blue)
             # Đặt vị trí dựa trên giá trị x, y đã cho
             text_item.setPos(coord['x'], coord['y'])
+        self.draw_grid()
         proportion = min(float((self.uic.widget.width()-50)/(self.Mapprocessing.max_x - self.Mapprocessing.min_x)), 
                          float((self.uic.widget.height()-50)/(self.Mapprocessing.max_y - self.Mapprocessing.min_y)))
-        self.graphicsView.scale(proportion,proportion)
-    
+        self.graphicsView.scale(proportion,proportion)  
 
     def show(self):
         self.main_win.show()
@@ -202,7 +266,6 @@ class MainWindow:
             print("chưa chọn điểm đích")
         else:
             print(f"Selected goals: {self.selected_goals}")
-        
             self.is_goal_active = False
             self.uic.Goal.setStyleSheet("") 
             self.is_setup_active = False
@@ -210,6 +273,7 @@ class MainWindow:
             self.graphicsView.pointsSelectedCallback = None 
             self.graphicsView.eraseSelected_points()
             if hasattr(self, 'moving_obj') and self.selected_goals:
+                self.path_points = []
                 start = (self.moving_obj.pos().x() + self.moving_obj.boundingRect().width() / 2,
                         self.moving_obj.pos().y() + self.moving_obj.boundingRect().height() / 2)
                 self.path_points.append(self.Mapprocessing.dijkstra_shortest_path(start, self.selected_goals[0]))
@@ -227,13 +291,132 @@ class MainWindow:
         pen_path = QPen(Qt.darkGreen, 50)
         for i in range(len(path_points)):
             path = path_points[i]
- 
-            for j in range(len(path)-1):
-                
+            for j in range(len(path)-1):             
                 x1, y1 = path[j]
                 x2, y2 = path[j + 1]
                 line =  self.scene.addLine(x1, y1, x2, y2, pen_path)
                 self.path_lines.append(line)
+
+    def highlightPathLine(self, scene_pos):
+        # Kiểm tra xem self.path_lines có tồn tại và không rỗng không
+        if not hasattr(self, 'path_lines') or len(self.path_lines) == 0:
+            return
+        
+        min_distance = float('inf')
+        nearest_line = None
+        
+        # Tìm đoạn thẳng gần nhất với vị trí chuột
+        for line in self.path_lines:
+            x1, y1 = line.line().p1().x(), line.line().p1().y()
+            x2, y2 = line.line().p2().x(), line.line().p2().y()
+            
+            # Tính khoảng cách từ điểm chuột đến đoạn thẳng
+            distance = self.distanceToLine(scene_pos, x1, y1, x2, y2)
+            
+            if distance < min_distance:
+                min_distance = distance
+                nearest_line = line
+        
+        # Ngưỡng khoảng cách để highlight (ví dụ: 50 pixel)
+        if min_distance < 50:
+            # Xóa highlight cũ nếu có
+            if self.current_highlighted_line is not None:
+                self.current_highlighted_line.setPen(QPen(Qt.darkGreen, 50))  # Màu gốc
+            
+            # Highlight đoạn thẳng gần nhất
+            nearest_line.setPen(QPen(Qt.yellow, 50))  # Màu vàng để highlight
+            self.current_highlighted_line = nearest_line
+        else:
+            # Nếu không có đoạn thẳng nào gần, xóa highlight cũ
+            if self.current_highlighted_line is not None:
+                self.current_highlighted_line.setPen(QPen(Qt.darkGreen, 50))
+                self.current_highlighted_line = None
+
+    def removePathLine(self, scene_pos):
+            # Kiểm tra xem self.path_lines có tồn tại và không rỗng không
+            if not hasattr(self, 'path_lines') or len(self.path_lines) == 0:
+                return
+            
+            min_distance = float('inf')
+            nearest_line = None
+            
+            # Tìm đoạn thẳng gần nhất với vị trí chuột
+            for line in self.path_lines:
+                x1, y1 = line.line().p1().x(), line.line().p1().y()
+                x2, y2 = line.line().p2().x(), line.line().p2().y()
+                
+                # Tính khoảng cách từ điểm chuột đến đoạn thẳng
+                distance = self.distanceToLine(scene_pos, x1, y1, x2, y2)
+                
+                if distance < min_distance:
+                    min_distance = distance
+                    nearest_line = line
+            
+            # Ngưỡng khoảng cách để highlight (ví dụ: 50 pixel)
+            if min_distance < 50:
+                # Xóa highlight cũ nếu có
+                self.scene.removeItem(nearest_line)
+
+    def distanceToLine(self, point, x1, y1, x2, y2):
+        import math
+        
+        # Vector từ điểm đầu đến điểm cuối của đoạn thẳng
+        line_vec = [x2 - x1, y2 - y1]
+        # Vector từ điểm đầu đến điểm chuột
+        point_vec = [point.x() - x1, point.y() - y1]
+        
+        # Tính độ dài đoạn thẳng
+        line_len = math.hypot(line_vec[0], line_vec[1])
+        if line_len == 0:
+            return math.hypot(point_vec[0], point_vec[1])
+        
+        # Tính projection scalar
+        proj = (point_vec[0] * line_vec[0] + point_vec[1] * line_vec[1]) / (line_len ** 2)
+        
+        if proj < 0:
+            closest = [x1, y1]  # Điểm gần nhất là điểm đầu
+        elif proj > 1:
+            closest = [x2, y2]  # Điểm gần nhất là điểm cuối
+        else:
+            closest = [x1 + proj * line_vec[0], y1 + proj * line_vec[1]]  # Điểm trên đoạn thẳng
+        
+        # Tính khoảng cách Euclidean từ điểm chuột đến điểm gần nhất
+        dx = point.x() - closest[0]
+        dy = point.y() - closest[1]
+        return math.hypot(dx, dy)
+
+    def Erase(self):
+        self.graphicsView.flagRemoveLine = True
+        self.graphicsView.gridHighlightCallback = self.highlightPathLine
+        self.graphicsView.pointsSelectedCallback = self.removePathLine
+
+    def AddLine(self):
+        self.versus = []
+        self.graphicsView.flagRemoveLine = True
+        self.graphicsView.gridHighlightCallback = self.highlightGridPoint
+        self.graphicsView.pointsSelectedCallback = self.AddlineCallback
+
+    def AddlineCallback(self, scene_pos):
+        if not hasattr(self, 'Mapprocessing') or not hasattr(self, 'grid_point_item'):
+            return
+        
+        min_distance = float('inf')
+        nearest_index = -1
+        pen_path = QPen(Qt.darkGreen, 50)
+        # Tìm điểm có khoảng cách nhỏ nhất đến vị trí chuột
+        for i, point in enumerate(self.grid_point_item):
+            # Giả sử mỗi điểm trong grid là tọa độ trung tâm của ô
+            distance = math.hypot(scene_pos.x() - point[0], scene_pos.y() - point[1])
+            if distance < min_distance:
+                min_distance = distance
+                nearest_index = i
+
+        if nearest_index != -1:
+            self.versus.append(self.grid_point_item[nearest_index])
+            #print(self.grid_point_item[i])
+            if len(self.versus) == 2:
+                line =  self.scene.addLine(self.versus[0][0], self.versus[0][1], self.versus[1][0],self.versus[1][1], pen_path)
+                self.versus = []
 
     def resume_next_segment(self):
         if self.resume_timer is not None:

@@ -32,7 +32,7 @@ class MapProcessing:
         self.min_y
         self.max_x
         self.max_y
-
+        self.gridalter
 
     def workingCoordinates(self):
         text_coordinates = {}
@@ -84,6 +84,7 @@ class MapProcessing:
         self.max_x = max(max_x1, max_x2)
         self.max_y = max(max_y1, max_y2)
         grid = self.createGrid(self.min_x, self.min_y, self.max_x, self.max_y)
+        self.gridalter = grid
         grid = self.removeBlockedCellsPolygon(grid, self.lwpolyline_points)
         grid = self.removeBlockedCellsLine(grid, self.line_points)
         return grid
@@ -112,19 +113,19 @@ class MapProcessing:
 
         for x in range(start_x, int(max_x), 200):
             for y in range(start_y, int(max_y), 200):
-                if x + 200 <= max_x and y + 200 <= max_y:
+                if x  <= max_x and y  <= max_y:
                     grid.append((x, y))
         for x in range(start_x, int(max_x), 200):
             for y in range(start_y, int(min_y), -200):
-                if x + 200 <= max_x and y - 200 >= min_y:
+                if x  <= max_x and y  >= min_y:
                     grid.append((x, y))
         for x in range(start_x, int(min_x), -200):
             for y in range(start_y, int(max_y), 200):
-                if x - 200 >= min_x and y + 200 <= max_y:
+                if x  >= min_x and y  <= max_y:
                     grid.append((x, y))
         for x in range(start_x, int(min_x), -200):
             for y in range(start_y, int(min_y), -200):
-                if x - 200 >= min_x and y - 200 >= min_y:
+                if x  >= min_x and y >= min_y:
                     grid.append((x, y))
         return grid
 
