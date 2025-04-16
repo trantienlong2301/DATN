@@ -245,15 +245,16 @@ class MainWindow:
         # Xóa tất cả các hình tròn cũ
         for circle in getattr(self, "current_circles", []):
             self.scene.removeItem(circle)
-        
         # Lưu danh sách điểm được chọn
-        self.selected_goals = points_list  
+        self.selected_goals = []
+        for point in points_list:
+            self.selected_goals.append(self.Mapprocessing.findClosestGridCenter(point)) 
         
         # Danh sách mới để lưu các hình tròn
         self.current_circles = []
         
         # Vẽ hình tròn tại từng điểm trong danh sách
-        for point in points_list:
+        for point in self.selected_goals:
             circle = self.scene.addEllipse(
                 point[0] - 250,  # X tọa độ góc trên bên trái
                 point[1] - 250,  # Y tọa độ góc trên bên trái

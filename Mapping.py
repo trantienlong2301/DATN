@@ -187,7 +187,7 @@ class MapProcessing:
             current_vertex = previous[current_vertex]
         path.append(start)
         path.reverse()
-        #path = self.remove_collinear_points(path)
+        path = self.remove_collinear_points(path)
         # path = self.smoothPath(path)
         # path[0] = start_old
         # path[-1] = end_old
