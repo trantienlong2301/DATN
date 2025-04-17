@@ -22,6 +22,8 @@ def recvall(sock, n):
 class CustomGraphicsView(QGraphicsView):
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setMouseTracking(True)
+        self.viewport().setMouseTracking(True)
         self.selected_points = []
         self.flagRemoveLine = None
         self.pointsSelectedCallback = None  

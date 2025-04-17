@@ -13,7 +13,7 @@ def recvall(sock, n):
         data += packet
     return data
 
-HOST = "192.168.1.38"  # Địa chỉ IP của ESP32
+HOST = "172.20.10.4"  # Địa chỉ IP của ESP32
 PORT = 80              # Cổng mà ESP32 đang lắng nghe
 current_position = [0,0]
 # Tạo socket TCP
@@ -39,7 +39,7 @@ try:
             "start": start,
             "goal": goal
         }
-
+        time.sleep(0.01)
         # Gửi dữ liệu dạng JSON
         json_data = json.dumps(control_data)
         client.sendall((json_data + "\n").encode('utf-8'))
@@ -48,7 +48,7 @@ try:
         send_time = time.time()
         elapsed_time = send_time - receive_time
         print("time1: ",elapsed_time)
-        # Nhận phản hồi từ ESP32 (nếu có)
+        #Nhận phản hồi từ ESP32 (nếu có)
         try:
             client.settimeout(2.0)
             header = recvall(client, 4)

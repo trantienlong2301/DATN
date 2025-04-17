@@ -3,10 +3,10 @@
 #include <ArduinoJson.h>
 #include <math.h>
 // Thay đổi thông tin WiFi theo mạng của bạn
-const char* ssid = "Long Pho 20";
-const char* password = "tienlong94";
-// const char* ssid = "6h50";
-// const char* password = "00000000";
+// const char* ssid = "Long Pho 20";
+// const char* password = "tienlong94";
+const char* ssid = "6h50";
+const char* password = "00000000";
 float currentx = 0.0;
 float currenty = 0.0;
 int a = 0;
@@ -51,7 +51,7 @@ void loop() {
       }
       // unsigned long receiveTime = millis() - startReceiveTime;
       // Serial.printf("Thời gian nhận tín hiệu: %lu ms\n", receiveTime);
-      if (request.length() > 0) {
+      //if (request.length() > 0) {
         // Parse JSON
         a = 0;
         StaticJsonDocument<200> doc;
@@ -92,7 +92,7 @@ void loop() {
         } else {
           client.println("JSON lỗi.");
         }
-      }
+      
       delay(10);
     }
 

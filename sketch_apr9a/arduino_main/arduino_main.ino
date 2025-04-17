@@ -3,10 +3,10 @@
 #include <ArduinoJson.h>
 #include <math.h>
 // Thay đổi thông tin WiFi theo mạng của bạn
-const char* ssid = "Long Pho 20";
-const char* password = "tienlong94";
-// const char* ssid = "6h50";
-// const char* password = "00000000";
+// const char* ssid = "Long Pho 20";
+// const char* password = "tienlong94";
+const char* ssid = "6h50";
+const char* password = "00000000";
 float currentx = 0.0;
 float currenty = 0.0;
 WiFiServer server(80);  // Khởi tạo server ở port 80

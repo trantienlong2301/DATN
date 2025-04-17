@@ -205,7 +205,7 @@ class MapProcessing:
 
     def getNeighbors(self, cell):
         neighbors = []
-        directions = [(200, 0), (0, 200), (-200, 0), (0, -200),(200,200),(-200,-200),(200,-200),(-200,200)]
+        directions = [(200, 0), (0, 200), (-200, 0), (0, -200)] #,(200,200),(-200,-200),(200,-200),(-200,200)
         for dx, dy in directions:
             neighbor_x = cell[0] + dx
             neighbor_y = cell[1] + dy
