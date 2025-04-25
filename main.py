@@ -9,7 +9,6 @@ from PyQt5.QtGui import QPen, QPolygonF, QFont
 from PyQt5.QtCore import Qt, QPointF, QPropertyAnimation, QSequentialAnimationGroup, QPointF, QEasingCurve, QTimer
 from AddMovingObject import MovingCompositeObject
 
-
 def recvall(sock, n):
     """Nhận đủ n byte từ socket."""
     data = b""
@@ -29,7 +28,7 @@ class CustomGraphicsView(QGraphicsView):
         self.flagAddLine = None
         self.pointsSelectedCallback = None  
         self.gridHighlightCallback = None
-    
+        self.rightMouseCallback = None
     def eraseSelected_points (self):
         self.selected_points = []
 
@@ -42,6 +41,9 @@ class CustomGraphicsView(QGraphicsView):
                 self.pointsSelectedCallback(self.selected_points)
             if self.pointsSelectedCallback and self.flagAddLine:
                 self.pointsSelectedCallback(scene_pos)
+        if event.button() == Qt.RightButton:
+            if self.rightMouseCallback:
+                self.rightMouseCallback()
         super().mousePressEvent(event)
 
     def mouseMoveEvent(self, event):
@@ -65,10 +67,10 @@ class MainWindow:
         self.uic.LoadMap.clicked.connect(self.load_dxf_file)
         self.uic.AddGoal.clicked.connect(self.add_goal_item)
         self.uic.AddLine.clicked.connect(self.AddLine)
-        self.uic.EraseLine.clicked.connect(self.Erase)
-        self.uic.Select.clicked.connect(self.Update)
-        self.uic.Simulate.clicked.connect(self.animate_moving_object)
-        self.uic.Start.clicked.connect(self.animate_moving_object1)
+        self.uic.EraseLine.clicked.connect(self.EraseLine)
+        self.uic.Select.clicked.connect(self.Select)
+        self.uic.Simulate.clicked.connect(self.Simulate)
+        self.uic.Start.clicked.connect(self.Start)
         self.uic.Continue.clicked.connect(self.resume_next_segment)
         # tạo graphics trên widget
         layout = QtWidgets.QVBoxLayout(self.uic.Screen)
@@ -77,20 +79,47 @@ class MainWindow:
         self.scene = QtWidgets.QGraphicsScene()
         self.graphicsView.setScene(self.scene)
         # Thiết lập callback cho sự kiện di chuyển chuột
-        self.graphicsView.gridHighlightCallback = self.highlightGridPoint
         self.current_highlighted_point = None  
-        self.current_highlighted_line = None # Đối tượng đang được highlight
+        self.current_highlighted_line_erase = None # Đối tượng đang được highlight
+        self.current_highlighted_line_add = None
         self.grid_point_item = []
-        self.is_AddGoal_active = True
-        self.is_AddLine_active = True
-        self.is_EraseLine_active = True
-        self.is_Simulate_active = True
-        self.is_Start_active = True
         self.selected_goals = None
         self.current_circle = None
         self.have_moving_obj = False
         self.line_items = []
         self.path_points = []
+        self.flags = {
+            "AddGoal" : False,
+            "AddLine" : False,
+            "EraseLine" : False,
+            "Simulate" : False,
+            "Start" : False
+        }
+
+    def display_button_color(self,button):
+        for key in self.flags:
+            if key == button:
+                self.flags[key] = not self.flags[key]
+            else:
+                self.flags[key] = False
+        
+        self.resetCallback()
+
+        if self.flags["AddGoal"]: self.uic.AddGoal.setStyleSheet("background-color: blue;")
+        else: self.uic.AddGoal.setStyleSheet("")
+        if self.flags["AddLine"]: self.uic.AddLine.setStyleSheet("background-color: blue;")
+        else: self.uic.AddLine.setStyleSheet("")
+        if self.flags["EraseLine"]: self.uic.EraseLine.setStyleSheet("background-color: blue;")
+        else: self.uic.EraseLine.setStyleSheet("")
+        if self.flags["Simulate"]: self.uic.Simulate.setStyleSheet("background-color: blue;")
+        else: self.uic.Simulate.setStyleSheet("")
+        if self.flags["Start"]: self.uic.Start.setStyleSheet("background-color: blue;")
+        else: self.uic.Start.setStyleSheet("")
+
+    def resetCallback(self):
+        self.graphicsView.pointsSelectedCallback = None  
+        self.graphicsView.gridHighlightCallback = None
+        self.graphicsView.rightMouseCallback = None
 
     def load_dxf_file(self):
         # Hộp thoại chọn file DXF
@@ -104,6 +133,7 @@ class MainWindow:
         self.draw_dxf()
 
     def draw_dxf(self):
+        self.scene.clear()
         if self.Mapprocessing.dwg is None:
             print(f"Lỗi khi đọc file DXF")
             return
@@ -181,16 +211,12 @@ class MainWindow:
         self.main_win.show()
            
     def add_goal_item(self):
-        if self.is_AddGoal_active:
-            self.is_AddGoal_active = None
+        self.display_button_color("AddGoal")
+        if self.flags["AddGoal"]:
             self.graphicsView.eraseSelected_points()
-            self.uic.AddGoal.setStyleSheet("background-color: blue;")
+            self.graphicsView.flagAddLine = None
+            self.graphicsView.gridHighlightCallback = self.highlightGridPoint
             self.graphicsView.pointsSelectedCallback = self.processSelectedPoints
-        else:
-            print(self.selected_goals)
-            self.is_AddGoal_active = True
-            self.uic.AddGoal.setStyleSheet("")
-            self.graphicsView.pointsSelectedCallback = None 
 
     def processSelectedPoints(self, points_list):
         # Xóa tất cả các hình tròn cũ
@@ -237,18 +263,18 @@ class MainWindow:
         # Ngưỡng khoảng cách để highlight (ví dụ: 50 pixel)
         if min_distance < 50:
             # Xóa highlight cũ nếu có
-            if self.current_highlighted_line is not None:
-                self.current_highlighted_line.setPen(QPen(Qt.darkGreen, 50))  # Màu gốc
+            if self.current_highlighted_line_erase is not None:
+                self.current_highlighted_line_erase.setPen(QPen(Qt.darkGreen, 50))  # Màu gốc
             
             # Highlight đoạn thẳng gần nhất
             nearest_line.setPen(QPen(Qt.yellow, 50))  # Màu vàng để highlight
-            self.current_highlighted_line = nearest_line
+            self.current_highlighted_line_erase = nearest_line
 
         else:
             # Nếu không có đoạn thẳng nào gần, xóa highlight cũ
-            if self.current_highlighted_line is not None:
-                self.current_highlighted_line.setPen(QPen(Qt.darkGreen, 50))
-                self.current_highlighted_line = None
+            if self.current_highlighted_line_erase is not None:
+                self.current_highlighted_line_erase.setPen(QPen(Qt.darkGreen, 50))
+                self.current_highlighted_line_erase = None
 
     def removePathLine(self, scene_pos):
             # Kiểm tra xem self.path_lines có tồn tại và không rỗng không
@@ -303,35 +329,69 @@ class MainWindow:
         dy = point.y() - closest[1]
         return math.hypot(dx, dy)
 
-    def Erase(self):
-        if self.is_EraseLine_active:
-            self.is_EraseLine_active = None
-            self.uic.EraseLine.setStyleSheet("background-color: blue;")
+    def EraseLine(self):
+        self.display_button_color("EraseLine")
+        if self.flags["EraseLine"]:
             self.graphicsView.flagAddLine = True
             self.graphicsView.gridHighlightCallback = self.highlightPathLine
             self.graphicsView.pointsSelectedCallback = self.removePathLine
-        else:
-            self.is_EraseLine_active = True
-            self.uic.EraseLine.setStyleSheet("")
-            self.graphicsView.flagAddLine = False
-            self.graphicsView.gridHighlightCallback = None
-            self.graphicsView.pointsSelectedCallback = None
 
     def AddLine(self):
-        if self.is_AddLine_active:
-            self.is_AddLine_active = None
-            self.uic.AddLine.setStyleSheet("background-color: blue;")
+        self.display_button_color("AddLine")
+        if self.flags["AddLine"]:
             self.versus = []
+            self.point1 = None
             self.graphicsView.flagAddLine = True
-            self.graphicsView.gridHighlightCallback = self.highlightGridPoint
+            self.graphicsView.gridHighlightCallback = self.LineCallback
             self.graphicsView.pointsSelectedCallback = self.AddlineCallback
-        else:
-            self.is_AddLine_active = True
-            self.uic.AddLine.setStyleSheet("")
-            self.graphicsView.flagAddLine = False
-            self.graphicsView.gridHighlightCallback = None
-            self.graphicsView.pointsSelectedCallback = None
-            print(len(self.line_items))
+            self.graphicsView.rightMouseCallback = self.finishCallback
+    
+    def finishCallback(self):
+        self.point1 = None
+        self.versus = []
+        self.scene.removeItem(self.current_highlighted_line_add)
+        self.current_highlighted_line_add = None
+    
+    def LineCallback(self,scene_pos):
+        if not hasattr(self, 'Mapprocessing') or not hasattr(self, 'grid_point_item'):
+            return
+        
+        min_distance = float('inf')
+        nearest_index = -1
+        pen_path = QPen(Qt.darkGreen, 50)
+        # Tìm điểm có khoảng cách nhỏ nhất đến vị trí chuột
+        for i, point in enumerate(self.grid_point_item):
+            # Giả sử mỗi điểm trong grid là tọa độ trung tâm của ô
+            distance = math.hypot(scene_pos.x() - point[0], scene_pos.y() - point[1])
+            if distance < min_distance:
+                min_distance = distance
+                nearest_index = i
+        
+        if nearest_index != -1:
+            # Reset lại điểm đã được highlight trước đó nếu có
+            if self.current_highlighted_point is not None:
+                self.scene.removeItem(self.current_highlighted_point)
+                self.current_highlighted_point = None
+
+            # Highlight điểm mới: thay đổi màu sang vàng (có thể thay đổi kích thước nếu muốn)
+            circle = self.scene.addEllipse(
+                self.grid_point_item[nearest_index][0] - 100,  # X tọa độ góc trên bên trái
+                self.grid_point_item[nearest_index][1] - 100,  # Y tọa độ góc trên bên trái
+                200, 200,  # Chiều rộng và chiều cao (hình tròn có đường kính 500)
+                QPen(Qt.green, 20)  # Màu viền xanh lá và độ dày 20px
+            )
+            self.current_highlighted_point = circle 
+        if self.point1 is not None:
+            if self.current_highlighted_line_add is not None:
+                self.scene.removeItem(self.current_highlighted_line_add)
+                self.current_highlighted_line_add = None
+
+            line = self.scene.addLine(
+                self.point1[0],self.point1[1],
+                self.grid_point_item[nearest_index][0],self.grid_point_item[nearest_index][1],
+                pen_path
+            )
+            self.current_highlighted_line_add = line
 
     def AddlineCallback(self, scene_pos):
         if not hasattr(self, 'Mapprocessing') or not hasattr(self, 'grid_point_item'):
@@ -350,13 +410,14 @@ class MainWindow:
 
         if nearest_index != -1:
             self.versus.append(self.grid_point_item[nearest_index])
+            self.point1 = self.grid_point_item[nearest_index]
             #print(self.grid_point_item[i])
             if len(self.versus) == 2:
                 line =  self.scene.addLine(self.versus[0][0], self.versus[0][1], self.versus[1][0],self.versus[1][1], pen_path)
                 self.line_items.append(line)
-                self.versus = []
+                del self.versus[0]
 
-    def Update(self):
+    def Select(self):
         if not self.line_items:
             return
         self.path_points = []
@@ -420,9 +481,9 @@ class MainWindow:
         # Nếu còn phần dư, thêm vào cuối
         if mid:
             self.path_points.append(mid)
-
+        del self.path_points[0] 
+        del self.path_points[-1]
         print("Cập nhật self.path_points:", self.path_points)
-
 
     def resume_next_segment(self):
         if self.resume_timer is not None:
@@ -432,18 +493,20 @@ class MainWindow:
             self.next_segment_callback()
             self.next_segment_callback = None
 
-    def animate_moving_object(self):
+    def Simulate(self):
+            self.display_button_color("Simulate")
             segments = self.path_points
             if not self.have_moving_obj:
                 self.have_moving_obj = True
                 self.moving_obj = MovingCompositeObject()
                 # Add moving_obj to the scene
                 self.scene.addItem(self.moving_obj)
-                center_offset = QPointF(self.moving_obj.boundingRect().width() / 2,
-                                    self.moving_obj.boundingRect().height() / 2)
-                self.moving_obj.setPos((QPointF(segments[0][0][0],segments[0][0][1])) - center_offset)
+            center_offset = QPointF(self.moving_obj.boundingRect().width() / 2,
+                                self.moving_obj.boundingRect().height() / 2)
+            self.moving_obj.setPos((QPointF(segments[0][0][0],segments[0][0][1])) - center_offset)
   
             if not hasattr(self, 'moving_obj') or len(segments) == 0:#Kiểm tra nếu không có moving_obj hoặc segments trống thì thoát hàm
+                self.display_button_color("Simulate")
                 return
             # Tính offset để đảm bảo moving_obj được căn giữa theo boundingRect
             center_offset = QPointF(self.moving_obj.boundingRect().width() / 2,
@@ -453,6 +516,7 @@ class MainWindow:
             self.next_segment_callback = None
             def animate_segment(seg_index):
                 if seg_index >= len(segments):
+                    self.display_button_color("Simulate")
                     return  # Đã hết các đoạn, dừng animation
 
                 segment = segments[seg_index]
@@ -542,9 +606,19 @@ class MainWindow:
             # Bắt đầu animate với đoạn đầu tiên
             animate_segment(0)
 
-    def animate_moving_object1(self):
+    def Start(self):
+        self.display_button_color("Start")
         segments = self.path_points
+        if not self.have_moving_obj:
+            self.have_moving_obj = True
+            self.moving_obj = MovingCompositeObject()
+            # Add moving_obj to the scene
+            self.scene.addItem(self.moving_obj)
+            center_offset = QPointF(self.moving_obj.boundingRect().width() / 2,
+                                self.moving_obj.boundingRect().height() / 2)
+            self.moving_obj.setPos((QPointF(segments[0][0][0],segments[0][0][1])) - center_offset)
         if not hasattr(self, 'moving_obj') or len(segments) == 0:#Kiểm tra nếu không có moving_obj hoặc segments trống thì thoát hàm
+            self.display_button_color("Start")
             return
 
         HOST = "192.168.1.38"  # Địa chỉ IP của ESP32
@@ -566,6 +640,7 @@ class MainWindow:
                 client.close()
                 print(" da dong ket noi.")
             if seg_index >= len(segments): 
+                self.display_button_color("Start")
                 return  # Đã hết các đoạn, dừng animation
 
             segment = segments[seg_index]
