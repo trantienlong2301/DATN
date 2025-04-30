@@ -8,7 +8,7 @@ from gui2 import Ui_MainWindow
 from PyQt5.QtGui import QPen, QPolygonF, QFont
 from PyQt5.QtCore import Qt, QPointF, QPropertyAnimation, QSequentialAnimationGroup, QPointF, QEasingCurve, QTimer
 from AddMovingObject import MovingCompositeObject
-
+from AddCoordinate import Coordinate
 def recvall(sock, n):
     """Nhận đủ n byte từ socket."""
     data = b""
@@ -57,6 +57,26 @@ class CustomGraphicsView(QGraphicsView):
         factor = 1.2 if event.angleDelta().y() > 0 else 1 / 1.2
         self.scale(factor, factor)
 
+    def drawForeground(self, painter, rect):
+        super().drawForeground(painter, rect)
+        # Nếu đã có moving_obj trong scene
+        for item in self.scene().items():
+            if isinstance(item, MovingCompositeObject):
+                x = item.pos().x()
+                y = item.pos().y()
+                angle = item.rotation()
+                text = f"x={x:.1f}, y={y:.1f}, θ={angle:.1f}°"
+                
+                # Chuẩn bị painter
+                painter.resetTransform()           # đảm bảo tọa độ painter là viewport
+                painter.setPen(Qt.red)
+                margin = 10
+                # Vẽ ở góc trên phải (cách lề phải margin, lề trên margin)
+                px = self.viewport().width() - painter.fontMetrics().width(text) - margin
+                py = painter.fontMetrics().ascent() + margin
+                painter.drawText(px, py, text)
+                break
+
 class MainWindow:
     def __init__(self):
         #setup mainwindow bằng gui1
@@ -72,6 +92,8 @@ class MainWindow:
         self.uic.Simulate.clicked.connect(self.Simulate)
         self.uic.Start.clicked.connect(self.Start)
         self.uic.Continue.clicked.connect(self.resume_next_segment)
+        self.uic.AddCoordinate.clicked.connect(self.AddCoordinate)
+        self.uic.AddObject.clicked.connect(self.AddObject)
         # tạo graphics trên widget
         layout = QtWidgets.QVBoxLayout(self.uic.Screen)
         self.graphicsView = CustomGraphicsView(self.uic.Screen)
@@ -93,7 +115,9 @@ class MainWindow:
             "AddLine" : False,
             "EraseLine" : False,
             "Simulate" : False,
-            "Start" : False
+            "Start" : False,
+            "AddObject": False,
+            "AddCoordinate": False
         }
 
     def display_button_color(self,button):
@@ -104,6 +128,7 @@ class MainWindow:
                 self.flags[key] = False
         
         self.resetCallback()
+        self.resetFlag(button)
 
         if self.flags["AddGoal"]: self.uic.AddGoal.setStyleSheet("background-color: blue;")
         else: self.uic.AddGoal.setStyleSheet("")
@@ -115,11 +140,30 @@ class MainWindow:
         else: self.uic.Simulate.setStyleSheet("")
         if self.flags["Start"]: self.uic.Start.setStyleSheet("background-color: blue;")
         else: self.uic.Start.setStyleSheet("")
+        if self.flags["AddObject"]: self.uic.AddObject.setStyleSheet("background-color: blue;")
+        else: self.uic.AddObject.setStyleSheet("")
+        if self.flags["AddCoordinate"]: self.uic.AddCoordinate.setStyleSheet("background-color: blue;")
+        else: self.uic.AddCoordinate.setStyleSheet("")
 
     def resetCallback(self):
         self.graphicsView.pointsSelectedCallback = None  
         self.graphicsView.gridHighlightCallback = None
         self.graphicsView.rightMouseCallback = None
+
+    def resetFlag(self,button):
+        if button == "AddObject":
+            if hasattr(self, "moving_obj"): 
+                self.moving_obj.setMovable(True)
+        else:
+            if hasattr(self, "moving_obj"): 
+                self.moving_obj.setMovable(False)
+
+        if button == "AddCoordinate":
+            if hasattr(self, "coordinate"): 
+                self.coordinate.setMovable(True)
+        else:
+            if hasattr(self, "coordinate"):
+                self.coordinate.setMovable(False)
 
     def load_dxf_file(self):
         # Hộp thoại chọn file DXF
@@ -158,6 +202,20 @@ class MainWindow:
         proportion = min(float((self.uic.Screen.width()-50)/(self.Mapprocessing.max_x - self.Mapprocessing.min_x)), 
                          float((self.uic.Screen.height()-50)/(self.Mapprocessing.max_y - self.Mapprocessing.min_y)))
         self.graphicsView.scale(proportion,proportion)  
+
+    def AddObject(self):  
+        self.display_button_color("AddObject") 
+        if not hasattr(self, "moving_obj"):          
+            self.moving_obj = MovingCompositeObject()
+        # Add moving_obj to the scene
+            self.scene.addItem(self.moving_obj)
+       
+    def AddCoordinate(self):  
+            self.display_button_color("AddCoordinate") 
+            if not hasattr(self, "coordinate"):          
+                self.coordinate = Coordinate()
+            # Add moving_obj to the scene
+                self.scene.addItem(self.coordinate)
 
     def draw_grid(self):
         #Vẽ lưới (grid) được tạo bởi MapProcessing lên scene."""

@@ -98,6 +98,8 @@ class MovingCompositeObject(QGraphicsObject):
             if hasattr(self, '_startPos'):
                 delta = event.scenePos() - self._startPos
                 self.setPos(self._itemPos + delta)
+                for view in self.scene().views():
+                    view.viewport().update()
         super().mouseMoveEvent(event)
         
     def mouseReleaseEvent(self, event):
@@ -110,8 +112,10 @@ class MovingCompositeObject(QGraphicsObject):
         super().mouseReleaseEvent(event)
         
     def print_position(self):
-        print('New position: x = {0}, y = {1}'.format(self.pos().x() + self.boundingRect().width() / 2,
+        print('Robot position: x = {0}, y = {1}'.format(self.pos().x() + self.boundingRect().width() / 2,
                                                        self.pos().y() + self.boundingRect().height() / 2  ))
+        
+
 class GraphicView(QGraphicsView):
     def __init__(self):
         super().__init__()
