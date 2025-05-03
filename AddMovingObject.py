@@ -12,11 +12,11 @@ class MovingCompositeObject(QGraphicsObject):
                       QGraphicsItem.GraphicsItemFlag.ItemIsSelectable)
         
         # Định nghĩa tọa độ và kích thước cho các hình, theo hệ tọa độ cục bộ của đối tượng.
-        self.rect1 = QRectF(0, 100, 500, 300)      # Hình chữ nhật thứ nhất
-        self.rect2 = QRectF(300, 200, 100, 100)    # Hình chữ nhật thứ hai
-        self.rect3 = QRectF(100, 0, 300, 100)   # Hình tròn thứ nhất
-        self.rect4 = QRectF(100, 400, 300, 100)    # Hình tròn thứ hai
- # Hình tròn thứ hai
+        self.rect1 = QRectF(-100, -100, 200, 200)     
+        self.rect2 = QRectF(30, -10, 20, 20)    
+        self.rect3 = QRectF(-33, -125, 66, 30)  
+        self.rect4 = QRectF(-33, 95, 66, 30)   
+
         
         # Đặt màu sắc cho từng hình (có thể tùy chỉnh theo ý muốn)
         self.rect1_color = Qt.GlobalColor.blue
@@ -38,7 +38,7 @@ class MovingCompositeObject(QGraphicsObject):
         Phương thức này trả về vùng chứa (bounding rectangle) của toàn bộ đối tượng.
         Vùng này phải bao bọc đủ 4 hình (hai hình chữ nhật và hai hình tròn).
         """
-        return QRectF(0, 0, 500, 500)
+        return QRectF(-250, -250, 500, 500)
 
     def paint(self, painter: QPainter, option, widget=None):
         """
@@ -47,11 +47,11 @@ class MovingCompositeObject(QGraphicsObject):
         """
         # Vẽ hình chữ nhật thứ nhất
         painter.setBrush(QBrush(self.rect1_color))
-        painter.drawRect(self.rect1)
+        painter.drawEllipse(self.rect1)
         
         # Vẽ hình chữ nhật thứ hai
         painter.setBrush(QBrush(self.rect2_color))
-        painter.drawRect(self.rect2)
+        painter.drawEllipse(self.rect2)
         
         # Vẽ hình tròn thứ nhất (drawEllipse vẽ hình elip dựa trên hình chữ nhật bao quanh)
         painter.setBrush(QBrush(self.rect3_color))
@@ -98,8 +98,6 @@ class MovingCompositeObject(QGraphicsObject):
             if hasattr(self, '_startPos'):
                 delta = event.scenePos() - self._startPos
                 self.setPos(self._itemPos + delta)
-                for view in self.scene().views():
-                    view.viewport().update()
         super().mouseMoveEvent(event)
         
     def mouseReleaseEvent(self, event):
