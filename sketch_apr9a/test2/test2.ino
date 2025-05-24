@@ -1,85 +1,119 @@
 #include <WiFi.h>
+#include <HardwareSerial.h>
+#include <TrinamicStepper.h>
 
-// Thay bằng SSID và password của bạn
-const char* ssid     = "Long Pho 20";
+#define MOTOR_NUM 2     
+int SetSpeeds[MOTOR_NUM] = {0,0};
+int MotorId = 1;
+unsigned long previousMillis = 0;  
+unsigned long previousMillis1 = 0;   
+unsigned long previousMillis2 = 0;   
+const long MotorInterval = 25;  
+
+// WiFi cấu hình
+const char* ssid = "Long Pho 20";
 const char* password = "tienlong94";
 
 WiFiServer server(1234);
-WiFiClient client;
-bool tasksCreated = false;
 
-// Task để đọc dữ liệu từ Python
-void ReadTask(void* pvParameters) {
-  WiFiClient* cli = (WiFiClient*) pvParameters;
-  static unsigned long prevRecvTime = 0;
-  while (cli->connected()) {
-    if (cli->available()) {
-      unsigned long now = millis();
-      String msg = cli->readStringUntil('\n');
-      Serial.print("[From Python] ");
-      Serial.println(msg);
+// UART1 cho Trinamic
+TrinamicStepper stepper(Serial1);
 
-      if (prevRecvTime != 0) {
-        unsigned long delta = now - prevRecvTime;
-        Serial.print("[Interval] ");
-        Serial.print(delta);
-        Serial.println(" ms");
-      }
-
-      // Cập nhật prevRecvTime
-      prevRecvTime = now;
-    }
-    vTaskDelay(10 / portTICK_PERIOD_MS);
-  }
-  vTaskDelete(NULL);
-}
-
-// Task để gửi dữ liệu đến Python
-void WriteTask(void* pvParameters) {
-  WiFiClient* cli = (WiFiClient*) pvParameters;
-  int counter = 0;
-  while (cli->connected()) {
-    String out = "ESP32 says hello #" + String(counter++);
-    cli->println(out);
-    // Serial.print("[To Python] ");
-    // Serial.println(out);
-    vTaskDelay(100 / portTICK_PERIOD_MS);  // send every 1 second
-  }
-  vTaskDelete(NULL);
-}
+char buffer[8];
+int dataValue[3] = {0,0,0};
+int cnt = 0, num = 0;
 
 void setup() {
   Serial.begin(115200);
-  WiFi.mode(WIFI_STA);
+  delay(1000);
+  Serial1.begin(38400, SERIAL_8N1, 16, 17);
+
   WiFi.begin(ssid, password);
-  Serial.print("Connecting to WiFi");
+  Serial.println("Kết nối Wi-Fi...");
   while (WiFi.status() != WL_CONNECTED) {
-    Serial.print('.');
     delay(500);
+    Serial.print(".");
   }
-  Serial.println();
-  Serial.print("Connected! IP address: ");
+
+  Serial.println("\nĐã kết nối Wi-Fi");
+  Serial.print("IP ESP32: ");
   Serial.println(WiFi.localIP());
 
   server.begin();
-  Serial.println("TCP server started on port 1234");
+  Serial.println("Đã khởi động server TCP");
 }
 
 void loop() {
-  // Accept new client
-  if (!tasksCreated) {
-    client = server.available();
-    if (client) {
-      Serial.println("Python client connected!");
-      // Tạo 2 task song song, truyền con trỏ client vào
-      xTaskCreatePinnedToCore(
-        ReadTask, "ReadTask", 4096, &client, 1, NULL, 0
-      );
-      xTaskCreatePinnedToCore(
-        WriteTask, "WriteTask", 4096, &client, 1, NULL, 1
-      );
-      tasksCreated = true;
+  WiFiClient client = server.available();
+  if (client) {
+    
+    Serial.println("Client mới kết nối.");
+    while (client.connected()) {
+      if (client.available()) {
+        unsigned long currentMillis1 ;
+        unsigned long t ;
+        unsigned long currentMillis2 ;
+        unsigned long t2 ;
+        previousMillis1 = currentMillis1;
+        char c = client.read();
+        switch (c) {
+          case '>':
+            previousMillis2 = millis();
+            cnt = 0;
+            num = 0;
+            memset(buffer, 0, sizeof(buffer));
+            continue;
+
+          case ',':
+            if (num < 2) {
+              dataValue[num++] = atoi(buffer);
+            }
+            cnt = 0;
+            memset(buffer, 0, sizeof(buffer));
+            continue;
+
+          case '\n':
+            currentMillis2 = millis();
+            t2 = currentMillis2 - previousMillis2;
+            Serial.printf("thoi gian xu ly: %d \n",t2);
+            if (num < 3) {
+              dataValue[num] = atoi(buffer);
+            }
+            currentMillis1 = millis();
+            t = currentMillis1 - previousMillis1;
+            Serial.printf("thoi gian nhan: %d \n",t);
+            previousMillis1 = currentMillis1;
+            Serial.printf("Tốc độ nhận: Trái = %d, Phải = %d, stt = %d\n", dataValue[0], dataValue[1],dataValue[2]);
+            SetSpeeds[0] = dataValue[0];
+            SetSpeeds[1] = dataValue[1];
+
+            client.println("OK");
+            client.flush();
+            delay(10);  // Gửi ngay không đọng buffer
+
+            cnt = 0;
+            num = 0;
+            memset(buffer, 0, sizeof(buffer));
+            continue;
+
+          default:
+            if (cnt < sizeof(buffer) - 1) {
+              buffer[cnt++] = c;
+            }
+            continue;
+        }
+      }
+
+      unsigned long currentMillis = millis();
+      if (currentMillis - previousMillis >= MotorInterval) {
+        previousMillis = currentMillis;
+        if (MotorId > MOTOR_NUM) MotorId = 1;
+        stepper.rotateRight(MotorId, SetSpeeds[MotorId - 1], true);
+        Serial.printf("Motor %d tốc độ = %d\n", MotorId, SetSpeeds[MotorId - 1]);
+        MotorId++;
+      }
     }
+    client.stop();
+    Serial.println("Client đã ngắt kết nối.");
   }
-  delay(10);
 }

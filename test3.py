@@ -34,16 +34,14 @@ def receiver(sock):
 
 def sender(sock):
     """Continuously send data to ESP32 and print send-times."""
-    prev_time = None
-    counter = 0
     while True:
-        now = time.time()
-        sock.sendall(f"{counter}\n".encode())
-        # if prev_time is not None:
-        #     delta = now - prev_time
-        #     print(f"[Send Interval] {delta:.3f} s")
-        prev_time = now
-        counter += 1
+
+        left_speed = 150
+        right_speed = 150
+        msg = f">{left_speed},{right_speed}\n"
+        print(f"📤 Gửi: {msg.strip()}")
+        sock.sendall(msg.encode())
+        
         time.sleep(0.1)   
 
 def main():

@@ -1,5 +1,5 @@
 import sys
-import math, socket, json, time, struct
+import math, socket, json, time, struct, threading
 from PyQt5 import QtWidgets, QtCore, QtGui
 from PyQt5.QtWidgets import QApplication, QMainWindow, QGraphicsView, QGraphicsScene
 from Mapping import MapProcessing
@@ -103,7 +103,8 @@ class MainWindow:
             "AddObject": False,
             "AddCoordinate": False
         }
-        
+        self.Wright = 0
+        self.Wleft = 0
 
     def display_button_color(self,button):
         for key in self.flags:
@@ -628,14 +629,14 @@ class MainWindow:
                                     1000 * self.uic.Vmax.value(),
                                     math.sqrt(2 * 500 * d_remain) if d_remain > 0 else 50)
                         angle,velRight,velLeft =self.PurePursuit.control([current_pos.x(),current_pos.y(),math.radians(current_angle)],v_desired)
-                        Wright = velRight/self.state.R
-                        Wleft = velLeft/self.state.R
-                        velx,vely,velang = self.state.velocity(math.radians(self.moving_obj.rotation()),Wright,Wleft)
+                        self.Wright = velRight/self.state.R
+                        self.Wleft = velLeft/self.state.R
+                        velx,vely,velang = self.state.velocity(math.radians(self.moving_obj.rotation()),self.Wright,self.Wleft)
                         velang = math.degrees(velang)
                         newPos = current_pos + QPointF(velx*0.1,vely*0.1)
                         newAngle = current_angle + velang * 0.1
-                        self.uic.VelRight.setText(f"{Wright:.2f} rad/s")
-                        self.uic.VelLeft.setText(f"{Wleft:.2f} rad/s")
+                        self.uic.VelRight.setText(f"{self.Wright:.2f} rad/s")
+                        self.uic.VelLeft.setText(f"{self.Wleft:.2f} rad/s")
                         self.uic.Angle.setText(f"{-newAngle:.2f} degrees")
                         self.moving_obj.setPos(newPos)
                         self.moving_obj.setRotation(newAngle)
@@ -656,40 +657,58 @@ class MainWindow:
             animate_segment(0)
 
     def Start(self):
-        self.display_button_color("Start")
+        def connect_to_esp32():
+            while True:
+                try:
+                    print("Đang cố gắng kết nối đến ESP32...")
+                    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                    s.settimeout(10)
+                    s.connect((HOST, PORT))
+                    s.settimeout(0)  # non-blocking mode
+                    print(" Đã kết nối đến ESP32.")
+                    return s
+                except Exception as e:
+                    print(f" Kết nối thất bại: {e}")
+                    time.sleep(2)
+                self.display_button_color("Start")
+
+        def send_data():
+            dem = 0
+            while True:
+                    dem +=1
+                    left_speed = self.Wleft
+                    right_speed = self.Wright
+                    msg = f">{left_speed},{right_speed},{dem}\n"
+                    print(f"📤 Gửi: {msg.strip()}")
+                    print(f"Đã gửi lúc {time.time()}")
+                    self.client.sendall(msg.encode())
+                    time.sleep(0.1)
+
         segments = self.path_points
-        if not self.have_moving_obj:
-            self.have_moving_obj = True
-            self.moving_obj = MovingCompositeObject()
-            # Add moving_obj to the scene
-            self.scene.addItem(self.moving_obj)
-            center_offset = QPointF(self.moving_obj.boundingRect().width() / 2,
-                                self.moving_obj.boundingRect().height() / 2)
-            self.moving_obj.setPos((QPointF(segments[0][0][0],segments[0][0][1])) - center_offset)
         if not hasattr(self, 'moving_obj') or len(segments) == 0:#Kiểm tra nếu không có moving_obj hoặc segments trống thì thoát hàm
-            self.display_button_color("Start")
+            self.display_button_color("Simulate")
+            print("error")
             return
 
         HOST = "192.168.1.38"  # Địa chỉ IP của ESP32
-        PORT = 80              # Cổng mà ESP32 đang lắng nghe
+        PORT = 1234              # Cổng mà ESP32 đang lắng nghe
         # Tạo socket TCP
-        client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client.connect((HOST, PORT))
-        print("Đã kết nối đến ESP32")
+        self.client = connect_to_esp32()
         
-        center_offset = QPointF(self.moving_obj.boundingRect().width() / 2,
-                                self.moving_obj.boundingRect().height() / 2)
-        # Các biến dùng để điều khiển việc chuyển sang đoạn tiếp theo
+       # Các biến dùng để điều khiển việc chuyển sang đoạn tiếp theo
+        self.state = State(self.uic.Ban_kinh.value(),self.uic.Chieu_rong.value())
         self.resume_timer = None
         self.next_segment_callback = None
-
         # Định nghĩa hàm di chuyển từng bước
         def animate_segment(seg_index):
-            if (abs(self.moving_obj.pos().x() + center_offset.x() - self.path_points[-1][-1][0]) < 10) and (abs(self.moving_obj.pos().y() + center_offset.y() - self.path_points[-1][-1][1]) < 10) :
-                client.close()
+            if (abs(self.moving_obj.pos().x()  - self.path_points[-1][-1][0]) < 10) and (abs(self.moving_obj.pos().y() - self.path_points[-1][-1][1]) < 10) :
+                self.client.close()
                 print(" da dong ket noi.")
-            if seg_index >= len(segments): 
-                self.display_button_color("Start")
+
+            if seg_index >= len(segments):
+                self.display_button_color("Simulate")
+                self.client.close()
                 return  # Đã hết các đoạn, dừng animation
 
             segment = segments[seg_index]
@@ -697,110 +716,47 @@ class MainWindow:
             if len(segment) < 2:
                 wait_for_resume(seg_index + 1)
                 return
-            def move_step(index):
-                if index >= len(segment):
-                    # Khi hoàn thành đoạn, tạm dừng 5s hoặc chờ nhấn nút để chuyển sang đoạn tiếp theo
+            
+            start_point = self.moving_obj.pos()
+            self.point1x,self.point1y = start_point.x(),start_point.y()
+            end_point = QPointF(segment[-1][0], segment[-1][1]) 
+            self.PurePursuit = PurePursuit(segment,500,100)
+
+            def move_step():
+                current_pos = self.moving_obj.pos()
+                self.scene.addLine(
+                    self.point1x,self.point1y,
+                    current_pos.x(),current_pos.y(),
+                    QPen(Qt.red, 30)
+                )
+                self.point1x,self.point1y = current_pos.x(),current_pos.y()
+                current_angle = self.moving_obj.rotation()
+                d_travelled = math.hypot(current_pos.x() - start_point.x(), current_pos.y() - start_point.y())
+                d_remain = math.hypot(current_pos.x() - end_point.x(), current_pos.y() - end_point.y()) -100
+                if d_remain < 10:
+                    self.uic.VelRight.setText(f"0 rad/s")
+                    self.uic.VelLeft.setText(f"0 rad/s")
                     wait_for_resume(seg_index + 1)
-                    return  # Kết thúc animation
+                else:
+                    v_desired = min(math.sqrt(2 * 500 * d_travelled) if d_travelled > 0 else 50,
+                                1000 * self.uic.Vmax.value(),
+                                math.sqrt(2 * 500 * d_remain) if d_remain > 0 else 50)
+                    angle,velRight,velLeft =self.PurePursuit.control([current_pos.x(),current_pos.y(),math.radians(current_angle)],v_desired)
+                    self.Wright = velRight/self.state.R
+                    self.Wleft = velLeft/self.state.R
+                    velx,vely,velang = self.state.velocity(math.radians(self.moving_obj.rotation()),self.Wright,self.Wleft)
+                    velang = math.degrees(velang)
+                    newPos = current_pos + QPointF(velx*0.1,vely*0.1)
+                    newAngle = current_angle + velang * 0.1
+                    self.uic.VelRight.setText(f"{self.Wright:.2f} rad/s")
+                    self.uic.VelLeft.setText(f"{self.Wleft:.2f} rad/s")
+                    self.uic.Angle.setText(f"{-newAngle:.2f} degrees")
+                    self.moving_obj.setPos(newPos)
+                    self.moving_obj.setRotation(newAngle)
+                    QTimer.singleShot(100,move_step)
+            move_step()
+                
 
-                start_point = QPointF(segment[index - 1][0], segment[index - 1][1]) - center_offset
-                end_point = QPointF(segment[index][0], segment[index][1]) - center_offset
-                d_total = math.hypot(segment[index][0] - segment[index - 1][0], segment[index][1] - segment[index - 1][1])
-                target_angle = math.degrees(math.atan2(segment[index][1] - segment[index - 1][1],segment[index][0] - segment[index - 1][0]))
-                print("start: ",start_point)
-                print("end: ",end_point)
-                a = 500
-                alpha = 25
-                segment_start = start_point
-                initial_angle = self.moving_obj.rotation()
-
-                def step_angle():
-                    current_angle = self.moving_obj.rotation()
-                    angle_diff = target_angle - current_angle
-                    # Xác định hướng xoay: 1 nếu tăng, -1 nếu giảm
-                    sign = 1 if angle_diff > 0 else -1
-                    d_total_angle = abs(target_angle - initial_angle)
-                    d_travelled_angle = abs(current_angle - initial_angle)
-                    d_remaining_angle = abs(target_angle - current_angle)
-
-                    # Nếu góc cần xoay quá nhỏ, hoàn thành xoay và chuyển sang di chuyển
-                    if d_remaining_angle < 1:
-                        self.moving_obj.setRotation(target_angle)
-                        step()  # bắt đầu chuyển động
-                        return
-
-                    # Tính vận tốc góc mong muốn theo ba pha: gia tốc, tốc độ không đổi, giảm tốc
-                    v_desired_angle = min(math.sqrt(2 * alpha * d_travelled_angle) if d_travelled_angle > 0 else 1,
-                                        50,
-                                        math.sqrt(2 * alpha * d_remaining_angle))
-                    angular_step = v_desired_angle * 0.1
-
-                    if d_remaining_angle <= angular_step:
-                        self.moving_obj.setRotation(target_angle)
-                        step()  # chuyển sang bước di chuyển khi đã xoay đủ
-                    else:
-                        new_angle = current_angle + sign * angular_step
-                        self.moving_obj.setRotation(new_angle)
-                        QTimer.singleShot(100, step_angle)
-
-                def step():
-                    current_pos = self.moving_obj.pos()
-                    d_travelled = math.hypot(current_pos.x() - segment_start.x(), current_pos.y() - segment_start.y())
-                    d_remain = d_total - d_travelled
-                    v_desired = min(math.sqrt(2 * a * d_travelled) if d_travelled > 0 else 50,
-                                1000,
-                                math.sqrt(2 * a * d_remain) if d_remain > 0 else 50)
-                    direction = (end_point - current_pos)
-                    distance = math.hypot(direction.x(), direction.y())
-
-                    if distance != 0:
-                        v_x = v_desired * direction.x()/distance
-                        v_y = v_desired * direction.y()/distance
-                    else:
-                        v_x = 0
-                        v_y = 0
-
-                    control_data = {
-                    "v_x": v_x,
-                    "v_y": v_y,
-                    "start": [start_point.x(),start_point.y()],
-                    "goal":  [end_point.x(),end_point.y()]
-                    }
-                    json_data = json.dumps(control_data)
-                    client.sendall((json_data + "\n").encode('utf-8'))
-                    print(" da gui:", json_data)
-                    try:
-                        client.settimeout(5.0)
-                        header = recvall(client, 4)
-                        if header is None:
-                            print("Kết nối bị đóng khi nhận header.")
-
-                        # Giải mã header theo network byte order ("!I" định dạng số nguyên 4 byte)
-                        msg_length = struct.unpack("!I", header)[0]
-
-                        # Nhận nội dung JSON theo độ dài vừa có được
-                        json_payload = recvall(client, msg_length)
-                        if json_payload is None:
-                            print("Kết nối bị đóng khi nhận payload.")
-
-                        response_data = json.loads(json_payload.decode("utf-8"))
-                        print("Vị trí hiện tại của robot:")
-                        print("  x =", response_data["x"])
-                        print("  y =", response_data["y"])
-                        self.moving_obj.setPos(QPointF(response_data["x"], response_data["y"]))
-                        
-                    except socket.timeout:
-                        print(" Khong nhan phan hoi.")
-
-                    move_distance = v_desired * 0.2
-                    if d_remain <= move_distance:
-                        self.moving_obj.setPos(end_point)
-                        move_step(index + 1)
-                    else:
-                        QTimer.singleShot(5, step)
-                step_angle()  # Bắt đầu animation
-
-            move_step(1)  # Bắt đầu từ điểm thứ hai
         def wait_for_resume(next_seg_index):
             # Lưu lại callback chuyển sang đoạn tiếp theo
             self.next_segment_callback = lambda: animate_segment(next_seg_index)
@@ -811,7 +767,9 @@ class MainWindow:
             self.resume_timer.start(5000)
 
         # Bắt đầu animate với đoạn đầu tiên
-        animate_segment(0)  
+        animate_segment(0)
+        t_send = threading.Thread(target=send_data, daemon=True)
+        t_send.start()
 
         
     
