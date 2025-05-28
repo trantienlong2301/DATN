@@ -1,0 +1,16 @@
+#https://github.com/IntelRealSense/librealsense/tree/master/wrappers/python
+pip install pyrealsense2
+
+#https://gist.github.com/innat/4af8e9a3accfdcf2511ee4ced26a1d77
+# pip install opencv-python
+
+Cai dat nhu sau:
+
+pip install pyrealsense2-2.50.0.3812-cp36-cp36m-win_amd64.whl
+
+import pyrealsense2 as rs
+
+import cv2
+print(cv2.__version__)
+import sys
+print(sys.path)

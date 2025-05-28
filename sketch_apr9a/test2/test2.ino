@@ -11,8 +11,10 @@ unsigned long previousMillis2 = 0;
 const long MotorInterval = 25;  
 
 // WiFi cấu hình
-const char* ssid = "Long Pho 20";
-const char* password = "tienlong94";
+  // const char* ssid = "Long Pho 20";
+  // const char* password = "tienlong94";
+const char* ssid = "RedmiK60";
+const char* password = "123456788";
 
 WiFiServer server(1234);
 

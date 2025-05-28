@@ -677,21 +677,21 @@ class MainWindow:
             dem = 0
             while True:
                     dem +=1
-                    left_speed = self.Wleft
-                    right_speed = self.Wright
+                    left_speed = self.Wleft *200/30
+                    right_speed = -self.Wright *200/30
                     msg = f">{left_speed},{right_speed},{dem}\n"
                     print(f"📤 Gửi: {msg.strip()}")
                     print(f"Đã gửi lúc {time.time()}")
                     self.client.sendall(msg.encode())
-                    time.sleep(0.1)
+                    time.sleep(0.01)
 
         segments = self.path_points
         if not hasattr(self, 'moving_obj') or len(segments) == 0:#Kiểm tra nếu không có moving_obj hoặc segments trống thì thoát hàm
             self.display_button_color("Simulate")
             print("error")
             return
-
-        HOST = "192.168.1.38"  # Địa chỉ IP của ESP32
+        HOST = "192.168.158.239"
+        # HOST = "192.168.1.38"  # Địa chỉ IP của ESP32
         PORT = 1234              # Cổng mà ESP32 đang lắng nghe
         # Tạo socket TCP
         self.client = connect_to_esp32()
@@ -736,6 +736,8 @@ class MainWindow:
                 if d_remain < 10:
                     self.uic.VelRight.setText(f"0 rad/s")
                     self.uic.VelLeft.setText(f"0 rad/s")
+                    self.Wleft =0
+                    self.Wright = 0
                     wait_for_resume(seg_index + 1)
                 else:
                     v_desired = min(math.sqrt(2 * 500 * d_travelled) if d_travelled > 0 else 50,
