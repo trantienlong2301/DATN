@@ -66,22 +66,25 @@ class MainWindow:
         self.main_win = QMainWindow()
         self.uic = Ui_MainWindow()
         self.uic.setupUi(self.main_win)
+
         #setup các nút di chuyển
         self.uic.Chieu_rong.setRange(0,1000)
-        self.uic.LoadMap.clicked.connect(self.load_dxf_file)
-        self.uic.AddGoal.clicked.connect(self.add_goal_item)
-        self.uic.AddLine.clicked.connect(self.AddLine)
-        self.uic.EraseLine.clicked.connect(self.EraseLine)
-        self.uic.Select.clicked.connect(self.Select)
-        self.uic.Simulate.clicked.connect(self.Simulate)
-        self.uic.Start.clicked.connect(self.Start)
-        self.uic.Continue.clicked.connect(self.resume_next_segment)
-        self.uic.AddCoordinate.clicked.connect(self.AddCoordinate)
-        self.uic.AddObject.clicked.connect(self.AddObject)
+        self.uic.actionOpen.triggered.connect(self.load_dxf_file)
+        self.uic.actionAddGoal.triggered.connect(self.add_goal_item)
+        self.uic.actionAddLine.triggered.connect(self.AddLine)
+        self.uic.actionTrim.triggered.connect(self.EraseLine)
+        self.uic.actionSelect.triggered.connect(self.Select)
+        self.uic.actionSimulate.triggered.connect(self.Simulate)
+        self.uic.actionStart.triggered.connect(self.Start)
+        self.uic.actionContinue.triggered.connect(self.resume_next_segment)
+        #self.uic.AddCoordinate.triggered.connect(self.AddCoordinate)
+        self.uic.actionrobot.triggered.connect(self.AddObject)
         # tạo graphics trên widget
-        layout = QtWidgets.QVBoxLayout(self.uic.Screen)
+        layout = QtWidgets.QVBoxLayout()
         self.graphicsView = CustomGraphicsView(self.uic.Screen)
         layout.addWidget(self.graphicsView)
+        self.uic.Screen.setLayout(layout)
+
         self.scene = QtWidgets.QGraphicsScene()
         self.graphicsView.setScene(self.scene)
         # Thiết lập callback cho sự kiện di chuyển chuột
@@ -106,6 +109,7 @@ class MainWindow:
         self.Wright = 0
         self.Wleft = 0
 
+  
     def display_button_color(self,button):
         for key in self.flags:
             if key == button:
@@ -116,20 +120,20 @@ class MainWindow:
         self.resetCallback()
         self.resetFlag(button)
 
-        if self.flags["AddGoal"]: self.uic.AddGoal.setStyleSheet("background-color: blue;")
-        else: self.uic.AddGoal.setStyleSheet("")
-        if self.flags["AddLine"]: self.uic.AddLine.setStyleSheet("background-color: blue;")
-        else: self.uic.AddLine.setStyleSheet("")
-        if self.flags["EraseLine"]: self.uic.EraseLine.setStyleSheet("background-color: blue;")
-        else: self.uic.EraseLine.setStyleSheet("")
-        if self.flags["Simulate"]: self.uic.Simulate.setStyleSheet("background-color: blue;")
-        else: self.uic.Simulate.setStyleSheet("")
-        if self.flags["Start"]: self.uic.Start.setStyleSheet("background-color: blue;")
-        else: self.uic.Start.setStyleSheet("")
-        if self.flags["AddObject"]: self.uic.AddObject.setStyleSheet("background-color: blue;")
-        else: self.uic.AddObject.setStyleSheet("")
-        if self.flags["AddCoordinate"]: self.uic.AddCoordinate.setStyleSheet("background-color: blue;")
-        else: self.uic.AddCoordinate.setStyleSheet("")
+        # if self.flags["AddGoal"]: self.uic.AddGoal.setStyleSheet("background-color: blue;")
+        # else: self.uic.AddGoal.setStyleSheet("")
+        # if self.flags["AddLine"]: self.uic.AddLine.setStyleSheet("background-color: blue;")
+        # else: self.uic.AddLine.setStyleSheet("")
+        # if self.flags["EraseLine"]: self.uic.EraseLine.setStyleSheet("background-color: blue;")
+        # else: self.uic.EraseLine.setStyleSheet("")
+        # if self.flags["Simulate"]: self.uic.Simulate.setStyleSheet("background-color: blue;")
+        # else: self.uic.Simulate.setStyleSheet("")
+        # if self.flags["Start"]: self.uic.Start.setStyleSheet("background-color: blue;")
+        # else: self.uic.Start.setStyleSheet("")
+        # if self.flags["AddObject"]: self.uic.AddObject.setStyleSheet("background-color: blue;")
+        # else: self.uic.AddObject.setStyleSheet("")
+        # if self.flags["AddCoordinate"]: self.uic.AddCoordinate.setStyleSheet("background-color: blue;")
+        # else: self.uic.AddCoordinate.setStyleSheet("")
 
     def resetCallback(self):
         self.graphicsView.pointsSelectedCallback = None  
@@ -677,8 +681,8 @@ class MainWindow:
             dem = 0
             while True:
                     dem +=1
-                    left_speed = self.Wleft *200/30
-                    right_speed = -self.Wright *200/30
+                    left_speed = self.Wleft *16.35
+                    right_speed = -self.Wright *16.35
                     msg = f">{left_speed},{right_speed},{dem}\n"
                     print(f"📤 Gửi: {msg.strip()}")
                     print(f"Đã gửi lúc {time.time()}")
@@ -752,7 +756,7 @@ class MainWindow:
                     newAngle = current_angle + velang * 0.1
                     self.uic.VelRight.setText(f"{self.Wright:.2f} rad/s")
                     self.uic.VelLeft.setText(f"{self.Wleft:.2f} rad/s")
-                    self.uic.Angle.setText(f"{-newAngle:.2f} degrees")
+                    self.uic.Angle.setText(f"{-newAngle:.2f} deg")
                     self.moving_obj.setPos(newPos)
                     self.moving_obj.setRotation(newAngle)
                     QTimer.singleShot(100,move_step)
