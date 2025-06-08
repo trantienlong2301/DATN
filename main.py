@@ -1,7 +1,7 @@
 import sys
 import math, socket, json, time, struct, threading
 from PyQt5 import QtWidgets, QtCore, QtGui
-from PyQt5.QtWidgets import QApplication, QMainWindow, QGraphicsView, QGraphicsScene
+from PyQt5.QtWidgets import QApplication, QMainWindow, QGraphicsView, QGraphicsScene, QDialog
 from Mapping import MapProcessing
 import ezdxf
 from gui2 import Ui_MainWindow
@@ -10,17 +10,25 @@ from PyQt5.QtCore import Qt, QPointF, QPropertyAnimation, QSequentialAnimationGr
 from AddMovingObject import MovingCompositeObject
 from AddCoordinate import Coordinate
 from Trajectory_Tracking import State,PurePursuit
+from InputDiaglog import Ui_Dialog
 
-def recvall(sock, n):
-    """Nhận đủ n byte từ socket."""
-    data = b""
-    while len(data) < n:
-        packet = sock.recv(n - len(data))
-        if not packet:
-            return None  # Nếu kết nối bị đóng
-        data += packet
-    return data
+class InputDialog(QDialog):
+    def __init__(self):
+        super().__init__()
+        self.ui = Ui_Dialog()
+        self.ui.setupUi(self)  # nạp giao diện từ .ui
+        self.ui.Chieu_rong.setRange(0,1000)
+        self.ui.pushButton.clicked.connect(self.accept)
 
+
+    def get_values(self):
+        # Lấy dữ liệu từ các spinbox, ví dụ:
+        return {
+            "Ban_kinh": self.ui.Ban_kinh.value(),
+            "Chieu_rong": self.ui.Chieu_rong.value(),
+            "Vmax": self.ui.Vmax.value()
+        }
+    
 class CustomGraphicsView(QGraphicsView):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -66,9 +74,26 @@ class MainWindow:
         self.main_win = QMainWindow()
         self.uic = Ui_MainWindow()
         self.uic.setupUi(self.main_win)
+        self.dialog = InputDialog()
 
-        #setup các nút di chuyển
-        self.uic.Chieu_rong.setRange(0,1000)
+        # Tạo spacer trái
+        left_spacer = QtWidgets.QWidget()
+        left_spacer.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred)
+
+        # Tạo spacer phải
+        right_spacer = QtWidgets.QWidget()
+        right_spacer.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred)
+
+        # Thêm vào toolbar
+        self.uic.toolBar_2.addWidget(left_spacer)
+
+        # Thêm các action giữa hai spacer
+        self.uic.toolBar_2.addAction(self.uic.actionSimulate)
+        self.uic.toolBar_2.addAction(self.uic.actionStart)
+        self.uic.toolBar_2.addAction(self.uic.actionContinue)
+
+        self.uic.toolBar_2.addWidget(right_spacer)
+
         self.uic.actionOpen.triggered.connect(self.load_dxf_file)
         self.uic.actionAddGoal.triggered.connect(self.add_goal_item)
         self.uic.actionAddLine.triggered.connect(self.AddLine)
@@ -77,8 +102,9 @@ class MainWindow:
         self.uic.actionSimulate.triggered.connect(self.Simulate)
         self.uic.actionStart.triggered.connect(self.Start)
         self.uic.actionContinue.triggered.connect(self.resume_next_segment)
-        #self.uic.AddCoordinate.triggered.connect(self.AddCoordinate)
+        self.uic.actioncoordinate.triggered.connect(self.AddCoordinate)
         self.uic.actionrobot.triggered.connect(self.AddObject)
+        self.uic.actionInput.triggered.connect(self.Show_input_diaglog)
         # tạo graphics trên widget
         layout = QtWidgets.QVBoxLayout()
         self.graphicsView = CustomGraphicsView(self.uic.Screen)
@@ -87,6 +113,13 @@ class MainWindow:
 
         self.scene = QtWidgets.QGraphicsScene()
         self.graphicsView.setScene(self.scene)
+
+        self.uic.VelLeft.setStyleSheet("QLabel { background-color: rgba(255, 255, 255, 0); color: black; }")
+        self.uic.VelRight.setStyleSheet("QLabel { background-color: rgba(255, 255, 255, 0); color: black; }")
+        self.uic.Angle.setStyleSheet("QLabel { background-color: rgba(255, 255, 255, 0); color: black; }")
+        self.uic.VelLeft.raise_()
+        self.uic.VelRight.raise_()
+        self.uic.Angle.raise_()
         # Thiết lập callback cho sự kiện di chuyển chuột
         self.current_highlighted_point = None  
         self.current_highlighted_line_erase = None # Đối tượng đang được highlight
@@ -109,7 +142,15 @@ class MainWindow:
         self.Wright = 0
         self.Wleft = 0
 
-  
+    def Show_input_diaglog(self):
+        if self.dialog.exec_():  # hiện cửa sổ và đợi OK
+            values = self.dialog.get_values()
+            self.ban_kinh = values["Ban_kinh"]
+            self.chieu_rong = values["Chieu_rong"]
+            self.speed = values["Vmax"]
+            print("Giá trị đã nhập:", self.ban_kinh, self.chieu_rong, self.speed)
+
+
     def display_button_color(self,button):
         for key in self.flags:
             if key == button:
@@ -119,21 +160,6 @@ class MainWindow:
         
         self.resetCallback()
         self.resetFlag(button)
-
-        # if self.flags["AddGoal"]: self.uic.AddGoal.setStyleSheet("background-color: blue;")
-        # else: self.uic.AddGoal.setStyleSheet("")
-        # if self.flags["AddLine"]: self.uic.AddLine.setStyleSheet("background-color: blue;")
-        # else: self.uic.AddLine.setStyleSheet("")
-        # if self.flags["EraseLine"]: self.uic.EraseLine.setStyleSheet("background-color: blue;")
-        # else: self.uic.EraseLine.setStyleSheet("")
-        # if self.flags["Simulate"]: self.uic.Simulate.setStyleSheet("background-color: blue;")
-        # else: self.uic.Simulate.setStyleSheet("")
-        # if self.flags["Start"]: self.uic.Start.setStyleSheet("background-color: blue;")
-        # else: self.uic.Start.setStyleSheet("")
-        # if self.flags["AddObject"]: self.uic.AddObject.setStyleSheet("background-color: blue;")
-        # else: self.uic.AddObject.setStyleSheet("")
-        # if self.flags["AddCoordinate"]: self.uic.AddCoordinate.setStyleSheet("background-color: blue;")
-        # else: self.uic.AddCoordinate.setStyleSheet("")
 
     def resetCallback(self):
         self.graphicsView.pointsSelectedCallback = None  
@@ -206,6 +232,12 @@ class MainWindow:
                 self.coordinate = Coordinate()
             # Add moving_obj to the scene
                 self.scene.addItem(self.coordinate)
+                # self.scene.addEllipse(
+                #     self.coordinate.pos().x() - 250,  # X tọa độ góc trên bên trái
+                #     self.coordinate.pos().y() - 250,  # Y tọa độ góc trên bên trái
+                #     500, 500,  # Chiều rộng và chiều cao (hình tròn có đường kính 500)
+                #     QPen(Qt.green, 20)  # Màu viền xanh lá và độ dày 20px
+                # )
 
     def draw_grid(self):
         #Vẽ lưới (grid) được tạo bởi MapProcessing lên scene."""
@@ -590,12 +622,12 @@ class MainWindow:
     def Simulate(self):
             self.display_button_color("Simulate")
             segments = self.path_points 
-            if not hasattr(self, 'moving_obj') or len(segments) == 0:#Kiểm tra nếu không có moving_obj hoặc segments trống thì thoát hàm
+            if not hasattr(self, 'moving_obj') or not hasattr(self, 'ban_kinh') or len(segments)  == 0:#Kiểm tra nếu không có moving_obj hoặc segments trống thì thoát hàm
                 self.display_button_color("Simulate")
                 print("error")
                 return
             # Các biến dùng để điều khiển việc chuyển sang đoạn tiếp theo
-            self.state = State(self.uic.Ban_kinh.value(),self.uic.Chieu_rong.value())
+            self.state = State(self.ban_kinh,self.chieu_rong)
             self.resume_timer = None
             self.next_segment_callback = None
             def animate_segment(seg_index):
@@ -625,12 +657,12 @@ class MainWindow:
                     d_travelled = math.hypot(current_pos.x() - start_point.x(), current_pos.y() - start_point.y())
                     d_remain = math.hypot(current_pos.x() - end_point.x(), current_pos.y() - end_point.y()) -100
                     if d_remain < 10:
-                        self.uic.VelRight.setText(f"0 rad/s")
-                        self.uic.VelLeft.setText(f"0 rad/s")
+                        self.uic.VelRight.setText(f"Wright: 0 rad/s")
+                        self.uic.VelLeft.setText(f"Wleft: 0 rad/s")
                         wait_for_resume(seg_index + 1)
                     else:
                         v_desired = min(math.sqrt(2 * 500 * d_travelled) if d_travelled > 0 else 50,
-                                    1000 * self.uic.Vmax.value(),
+                                    1000 * self.speed,
                                     math.sqrt(2 * 500 * d_remain) if d_remain > 0 else 50)
                         angle,velRight,velLeft =self.PurePursuit.control([current_pos.x(),current_pos.y(),math.radians(current_angle)],v_desired)
                         self.Wright = velRight/self.state.R
@@ -639,9 +671,9 @@ class MainWindow:
                         velang = math.degrees(velang)
                         newPos = current_pos + QPointF(velx*0.1,vely*0.1)
                         newAngle = current_angle + velang * 0.1
-                        self.uic.VelRight.setText(f"{self.Wright:.2f} rad/s")
-                        self.uic.VelLeft.setText(f"{self.Wleft:.2f} rad/s")
-                        self.uic.Angle.setText(f"{-newAngle:.2f} degrees")
+                        self.uic.VelRight.setText(f"Wright: {self.Wright:.2f} rad/s")
+                        self.uic.VelLeft.setText(f"Wleft: {self.Wleft:.2f} rad/s")
+                        self.uic.Angle.setText(f"Angle: {-newAngle:.2f} deg")
                         self.moving_obj.setPos(newPos)
                         self.moving_obj.setRotation(newAngle)
                         QTimer.singleShot(100,move_step)
@@ -690,7 +722,7 @@ class MainWindow:
                     time.sleep(0.01)
 
         segments = self.path_points
-        if not hasattr(self, 'moving_obj') or len(segments) == 0:#Kiểm tra nếu không có moving_obj hoặc segments trống thì thoát hàm
+        if not hasattr(self, 'moving_obj') or not hasattr(self, 'ban_kinh') or len(segments) == 0:#Kiểm tra nếu không có moving_obj hoặc segments trống thì thoát hàm
             self.display_button_color("Simulate")
             print("error")
             return
@@ -701,7 +733,7 @@ class MainWindow:
         self.client = connect_to_esp32()
         
        # Các biến dùng để điều khiển việc chuyển sang đoạn tiếp theo
-        self.state = State(self.uic.Ban_kinh.value(),self.uic.Chieu_rong.value())
+        self.state = State(self.ban_kinh,self.chieu_rong)
         self.resume_timer = None
         self.next_segment_callback = None
         # Định nghĩa hàm di chuyển từng bước
@@ -738,14 +770,14 @@ class MainWindow:
                 d_travelled = math.hypot(current_pos.x() - start_point.x(), current_pos.y() - start_point.y())
                 d_remain = math.hypot(current_pos.x() - end_point.x(), current_pos.y() - end_point.y()) -100
                 if d_remain < 10:
-                    self.uic.VelRight.setText(f"0 rad/s")
-                    self.uic.VelLeft.setText(f"0 rad/s")
+                    self.uic.VelRight.setText(f"Wright: 0 rad/s")
+                    self.uic.VelLeft.setText(f"Wleft: 0 rad/s")
                     self.Wleft =0
                     self.Wright = 0
                     wait_for_resume(seg_index + 1)
                 else:
                     v_desired = min(math.sqrt(2 * 500 * d_travelled) if d_travelled > 0 else 50,
-                                1000 * self.uic.Vmax.value(),
+                                1000 * self.speed,
                                 math.sqrt(2 * 500 * d_remain) if d_remain > 0 else 50)
                     angle,velRight,velLeft =self.PurePursuit.control([current_pos.x(),current_pos.y(),math.radians(current_angle)],v_desired)
                     self.Wright = velRight/self.state.R
@@ -754,9 +786,9 @@ class MainWindow:
                     velang = math.degrees(velang)
                     newPos = current_pos + QPointF(velx*0.1,vely*0.1)
                     newAngle = current_angle + velang * 0.1
-                    self.uic.VelRight.setText(f"{self.Wright:.2f} rad/s")
-                    self.uic.VelLeft.setText(f"{self.Wleft:.2f} rad/s")
-                    self.uic.Angle.setText(f"{-newAngle:.2f} deg")
+                    self.uic.VelRight.setText(f"Wright: {self.Wright:.2f} rad/s")
+                    self.uic.VelLeft.setText(f"Wleft: {self.Wleft:.2f} rad/s")
+                    self.uic.Angle.setText(f"Angle: {-newAngle:.2f} deg")
                     self.moving_obj.setPos(newPos)
                     self.moving_obj.setRotation(newAngle)
                     QTimer.singleShot(100,move_step)

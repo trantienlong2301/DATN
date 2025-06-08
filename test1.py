@@ -1,34 +1,27 @@
-import asyncio
-import aiohttp
+from PyQt5 import QtWidgets, uic
 
-# Địa chỉ IP của ESP32, cập nhật theo mạng của bạn
-esp_ip = "http://192.168.158.239"
+class InputDialog(QtWidgets.QDialog):
+    def __init__(self):
+        super().__init__()
+        uic.loadUi("input_dialog.ui", self)  # nạp giao diện dialog
 
-# Hàm gửi tốc độ và nhận vị trí từ ESP32
-async def control_robot(session, speed_value):
-    try:
-        # Gửi tốc độ đến ESP32
-        async with session.get(f"{esp_ip}/setSpeed", params={"value": speed_value}) as resp:
-            setSpeed_response = await resp.text()
-            print("Cập nhật tốc độ:", setSpeed_response)
+class MainWindow(QtWidgets.QMainWindow):
+    def __init__(self):
+        super().__init__()
+        uic.loadUi("gui2.ui", self)  # nạp giao diện chính
 
-        # Lấy vị trí hiện tại của robot
-        async with session.get(f"{esp_ip}/getPosition") as resp:
-            position = await resp.text()
-            print("Vị trí robot:", position)
-    except Exception as e:
-        print("Lỗi:", e)
+        # Kết nối QAction trong toolbar
+        self.actionInputValues.triggered.connect(self.show_input_dialog)
 
-# Main loop chạy liên tục mỗi 0.1 giây
-async def main():
-    # Có thể cấu hình timeout nếu cần
-    async with aiohttp.ClientSession() as session:
-        # Ví dụ: tốc độ mong muốn có thể được tính toán hoặc lấy từ cảm biến
-        speed_value = 0.5  # ví dụ: 0.5 m/s
-        while True:
-            await control_robot(session, speed_value)
-            # Chờ không chặn 0.1 giây
-            await asyncio.sleep(0.1)
+    def show_input_dialog(self):
+        dialog = InputDialog()
+        if dialog.exec_():  # hiển thị dialog và đợi người dùng OK
+            # Lấy giá trị từ spinbox
+            speed = dialog.spinSpeed.value()
+            angle = dialog.spinAngle.value()
+            print(f"Tốc độ: {speed}, Góc: {angle}")
 
-# Chạy chương trình bất đồng bộ
-asyncio.run(main())
+app = QtWidgets.QApplication([])
+window = MainWindow()
+window.show()
+app.exec_()
