@@ -63,3 +63,14 @@ class PurePursuit:
         vel_left = v * (1 - math.tan(delta))
         return delta, vel_right, vel_left
 
+class rotation:
+    def __init__(self,target_angle,velocity):
+        self.target = target_angle
+        self.vel = velocity
+
+    def control(self, state):
+        angle_diff = self.target - state
+        direction = 1 if angle_diff > 0 else -1
+        right_speed = direction * self.vel
+        left_speed = -direction * self.vel
+        return left_speed, right_speed
