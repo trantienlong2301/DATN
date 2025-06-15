@@ -8,7 +8,7 @@ while client_connection:
     time.sleep(1)
     print("Try connect to server...")
     try:
-        #s.connect((socket.gethostname(), 1243))
+        #s.connect((socket.gethostname(), 1243))d
         print(str(client_connection))
         s.connect(('192.168.1.106', 8000))
         
@@ -18,11 +18,7 @@ while client_connection:
     message = "pose"  # take input
 
     while message.lower().strip() != 'bye':
-            message = input(" -> ")  # again take input
             try:
-                for _ in range(1):
-                    s.send(message.encode())  # send message
-                    time.sleep(0.001)
                     data = s.recv(1024).decode()  # receive response
                     print('Received from server: ' + data)  # show in terminal
             except:

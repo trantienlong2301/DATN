@@ -127,7 +127,6 @@ class MainWindow:
         self.grid_point_item = []
         self.selected_goals = None
         self.current_circle = None
-        self.have_moving_obj = False
         self.line_items = []
         self.path_points = []
         self.path = []
@@ -150,6 +149,12 @@ class MainWindow:
             self.chieu_rong = values["Chieu_rong"]
             self.speed = values["Vmax"]
             print("Giá trị đã nhập:", self.ban_kinh, self.chieu_rong, self.speed)
+        if hasattr(self, 'moving_obj'):
+            pos = self.moving_obj.pos()
+            self.scene.removeItem(self.moving_obj)
+            self.moving_obj = MovingCompositeObject(self.chieu_rong)
+            self.scene.addItem(self.moving_obj)
+            self.moving_obj.setPos(pos)
 
 
     def display_button_color(self,button):
@@ -195,6 +200,10 @@ class MainWindow:
 
     def draw_dxf(self):
         self.scene.clear()
+        if hasattr(self, 'moving_obj'):
+            del self.moving_obj
+        if hasattr(self, 'coordinate'):
+            del self.coordinate
         if self.Mapprocessing.dwg is None:
             print(f"Lỗi khi đọc file DXF")
             return
@@ -221,9 +230,13 @@ class MainWindow:
         self.graphicsView.scale(proportion,proportion)  
 
     def AddObject(self):  
-        self.display_button_color("AddObject") 
+        self.display_button_color("AddObject")
+        if hasattr(self, "chieu_rong"):
+            D = self.chieu_rong
+        else:
+            D = 300
         if not hasattr(self, "moving_obj"):          
-            self.moving_obj = MovingCompositeObject()
+            self.moving_obj = MovingCompositeObject(D)
         # Add moving_obj to the scene
             self.scene.addItem(self.moving_obj)
        
