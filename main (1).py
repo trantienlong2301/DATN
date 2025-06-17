@@ -18,6 +18,9 @@ class InputDialog(QDialog):
         self.ui = Ui_Dialog()
         self.ui.setupUi(self)  # nạp giao diện từ .ui
         self.ui.Chieu_rong.setRange(0,1000)
+        self.ui.Chieu_rong.setValue(245)
+        self.ui.Ban_kinh.setValue(33)
+        self.ui.Vmax.setValue(0.5)
         self.ui.pushButton.clicked.connect(self.accept)
 
 
@@ -100,7 +103,7 @@ class MainWindow:
         self.uic.actionTrim.triggered.connect(self.EraseLine)
         self.uic.actionSelect.triggered.connect(self.Select)
         self.uic.actionSimulate.triggered.connect(self.Simulate)
-        self.uic.actionStart.triggered.connect(self.Start)
+        self.uic.actionStart.triggered.connect(self.Start2)
         self.uic.actionContinue.triggered.connect(self.resume_next_segment)
         self.uic.actioncoordinate.triggered.connect(self.AddCoordinate)
         self.uic.actionrobot.triggered.connect(self.AddObject)
@@ -141,7 +144,12 @@ class MainWindow:
         }
         self.Wright = 0
         self.Wleft = 0
-
+        self.robot1 =0
+        self.robot2 = 0
+        self.robot3 = 0
+        self.ban_kinh = 33
+        self.chieu_rong = 245
+        self.speed = 0.5
     def Show_input_diaglog(self):
         if self.dialog.exec_():  # hiện cửa sổ và đợi OK
             values = self.dialog.get_values()
@@ -239,6 +247,7 @@ class MainWindow:
             self.moving_obj = MovingCompositeObject(D)
         # Add moving_obj to the scene
             self.scene.addItem(self.moving_obj)
+            
        
     def AddCoordinate(self):  
             self.display_button_color("AddCoordinate") 
@@ -794,9 +803,9 @@ class MainWindow:
             dem = 0
             while True:
                     dem +=1
-                    left_speed = self.Wleft *16.35
-                    right_speed = -self.Wright *16.35
-                    msg = f">{left_speed},{right_speed},{dem}\n"
+                    left_speed = int(-self.Wright *17.54)
+                    right_speed = int(self.Wleft *17.54)
+                    msg = f"{left_speed},{right_speed}\n"
                     print(f"📤 Gửi: {msg.strip()}")
                     print(f"Đã gửi lúc {time.time()}")
                     self.esp32.sendall(msg.encode())
@@ -807,8 +816,8 @@ class MainWindow:
             self.display_button_color("Simulate")
             print("error")
             return
-        HOST = "192.168.158.239"
-        # HOST = "192.168.1.38"  # Địa chỉ IP của ESP32
+        HOST = "192.168.158.56"
+        # HOST = "172.20"  # Địa chỉ IP của ESP32
         PORT = 1234              # Cổng mà ESP32 đang lắng nghe
         # Tạo socket TCP
         self.esp32 = connect_to_esp32()
@@ -926,14 +935,17 @@ class MainWindow:
         t_send.start()
 
 
-    def converCoordinate(self, x, y, angle):
-        toa_do1, toa_do2 = self.coordinate.pos().x(), self.coordinate.pos().y()
-        robot1 = x + toa_do1
-        robot2 = toa_do2 -y
-        robot3 = -angle
-        self.moving_obj.setPos(QPointF(robot1,robot2))
-        self.moving_obj.setRotation(robot3)
-        return robot1, robot2, robot3
+    def converCoordinate(self, x, z, angle):
+        if hasattr(self, 'coordinate'):
+            toa_do1, toa_do2 = self.coordinate.pos().x(), self.coordinate.pos().y()
+            robot1 = toa_do1 - z
+            robot2 = toa_do2 + x
+            robot3 = -angle
+            self.moving_obj.setPos(QPointF(robot1,robot2))
+            self.moving_obj.setRotation(robot3)
+            return robot1, robot2, robot3
+        else:
+            return x,z,angle
 
     def Start2(self):
         def connect_to_esp32():
@@ -943,7 +955,7 @@ class MainWindow:
                     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                     s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                     s.settimeout(10)
-                    s.connect((HOST, PORT))
+                    s.connect(('192.168.158.56', 1234))
                     s.settimeout(0)  # non-blocking mode
                     print(" Đã kết nối đến ESP32.")
                     return s
@@ -956,49 +968,65 @@ class MainWindow:
             dem = 0
             while True:
                     try:
-                        dem +=1
-                        left_speed = self.Wleft *16.35
-                        right_speed = -self.Wright *16.35
-                        msg = f">{left_speed},{right_speed},{dem}\n"
+                        left_speed = int(-self.Wright *10)
+                        right_speed = int(self.Wleft *10)
+                        msg = f"{left_speed},{right_speed}\n"
                         print(f"📤 Gửi: {msg.strip()}")
                         print(f"Đã gửi lúc {time.time()}")
                         self.esp32.sendall(msg.encode())
                         time.sleep(0.01)
                     except:
-                        print("Lost Connection")
+                        print("Lost Connection1")
                         break
 
         def connect_to_camera():
-            pass
+            while True:
+                try:
+                    print("Đang cố gắng kết nối đến camera...")
+                    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    s.connect(('192.168.158.113', 8000))
+                    print(" Đã kết nối đến camera.")
+                    return s
+                except Exception as e:
+                    print(f" Kết nối thất bại: {e}")
+                    time.sleep(2)
+            
 
         def read_data_from_camera():
-            dem = 0
-            while True:
-                    try:
-                        dem +=1
-                        data = self.camera.recv(1024).decode()  # receive response
-                        parts = data.split(',')
-                        if len(parts) == 6:
-                            x = float(parts[0])
-                            y = float(parts[1])
-                            z = float(parts[2])
-                            pitch = float(parts[3])
-                            yaw = float(parts[4])
-                            roll = float(parts[5])
-                            print(f"x={x}, y={y}, z={z}, pitch={pitch}, yaw={yaw}, roll={roll}, dem={dem}")
-                            self.x,self.y,self.ang = self.convertCoordinate(x,y,yaw)
-                    except:
-                        print("Lost Connection")
-                        break
+         
+            message = "pose"  # take input
+
+            while message.lower().strip() != 'bye':
+                try:
+                    data = self.camera.recv(1024).decode()  # receive response
+                    print('Received from server: ' + data)  # show in terminal
+                    parts = data.split(',')
+                    if len(parts) == 6:
+                        x = float(parts[0])
+                        y = float(parts[1])
+                        z = float(parts[2])
+                        pitch = float(parts[3])
+                        yaw = float(parts[4])
+                        roll = float(parts[5])
+                        if hasattr(self, 'coordinate'):
+                            toa_do1, toa_do2 = self.coordinate.pos().x(), self.coordinate.pos().y()
+                            self.robot1 = toa_do1 -z
+                            self.robot2 = toa_do2 + x
+                            self.robot3 = -yaw
+                            
+
+                except:
+                    print("Lost Connection")
+                    break
+                
+            
 
         segments = self.path
         if not hasattr(self, 'moving_obj') or not hasattr(self, 'ban_kinh') or len(segments) == 0:#Kiểm tra nếu không có moving_obj hoặc segments trống thì thoát hàm
             self.display_button_color("Simulate")
             print("error")
             return
-        HOST = "192.168.158.239"
-        # HOST = "192.168.1.38"  # Địa chỉ IP của ESP32
-        PORT = 1234              # Cổng mà ESP32 đang lắng nghe
+        self.robot1, self.robot2, self.robot3 = self.moving_obj.pos().x(),self.moving_obj.pos().y(),self.moving_obj.rotation()
         # Tạo socket TCP
         self.esp32 = connect_to_esp32()
         self.camera = connect_to_camera()
@@ -1007,13 +1035,15 @@ class MainWindow:
         self.next_segment_callback = None
         # Định nghĩa hàm di chuyển từng bước
         def animate_segment(seg_index):
-            if (abs(self.moving_obj.pos().x()  - self.path[-1][-1][0]) < 10) and (abs(self.moving_obj.pos().y() - self.path[-1][-1][1]) < 10) :
+            if (abs(self.moving_obj.pos().x()  - self.path[-1][-1][0]) < 100) and (abs(self.moving_obj.pos().y() - self.path[-1][-1][1]) < 100) :
+                self.camera.close()
                 self.esp32.close()
                 print(" da dong ket noi.")
 
             if seg_index >= len(segments):
                 self.display_button_color("Simulate")
                 self.esp32.close()
+                self.camera.close()
                 return  # Đã hết các đoạn, dừng animation
 
             segment = segments[seg_index]
@@ -1021,9 +1051,6 @@ class MainWindow:
             if len(segment) < 2:
                 wait_for_resume(seg_index + 1)
                 return
-            
-            start_point = self.moving_obj.pos()
-            self.point1x,self.point1y = start_point.x(),start_point.y()
 
             def move_step(index):
                 if index >= len(segment):
@@ -1038,37 +1065,34 @@ class MainWindow:
                 densified_segment = self.densify_path(path,200)
                 self.PurePursuit = PurePursuit(densified_segment,500,100)
                 def step():
-                    current_pos = self.moving_obj.pos()
+                    current_x, current_y = self.robot1,self.robot2
                     self.scene.addLine(
                         self.point1x,self.point1y,
-                        current_pos.x(),current_pos.y(),
+                        current_x,current_y,
                         QPen(Qt.red, 30)
                     )
-                    self.point1x,self.point1y = current_pos.x(),current_pos.y()
+                    self.point1x,self.point1y = current_x,current_y
                     current_angle = self.moving_obj.rotation()
-                    d_travelled = math.hypot(current_pos.x() - start_point.x(), current_pos.y() - start_point.y())
-                    d_remain = math.hypot(current_pos.x() - end_point.x(), current_pos.y() - end_point.y()) -100
-                    if d_remain < 10:
+                    d_remain = math.hypot(self.robot1 - end_point.x(), self.robot2 - end_point.y()) -100
+                    if d_remain < 100:
                         self.uic.VelRight.setText(f"Wright: 0 rad/s")
                         self.uic.VelLeft.setText(f"Wleft: 0 rad/s")
                         self.Wleft =0
                         self.Wright = 0
                         move_step(index+1)
                     else:
-                        v_desired = min(math.sqrt(2 * 500 * d_travelled) if d_travelled > 0 else 50,
-                                    1000 * self.speed,
-                                    math.sqrt(2 * 500 * d_remain) if d_remain > 0 else 50)
-                        _,velRight,velLeft =self.PurePursuit.control([current_pos.x(),current_pos.y(),math.radians(current_angle)],v_desired)
-                        self.Wright = velRight/self.state.R
-                        self.Wleft = velLeft/self.state.R
+                        _,velRight,velLeft =self.PurePursuit.control([self.robot1,self.robot2,math.radians(self.robot3)],self.speed)
+                        self.Wright = velRight/self.ban_kinh
+                        self.Wleft = velLeft/self.ban_kinh
+                        self.moving_obj.setPos(QPointF(self.robot1, self.robot2))
+                        self.moving_obj.setRotation(self.robot3)
                         self.uic.VelRight.setText(f"Wright: {self.Wright:.2f} rad/s")
                         self.uic.VelLeft.setText(f"Wleft: {self.Wleft:.2f} rad/s")
-                        QTimer.singleShot(100,step)
+                        QTimer.singleShot(10,step)
                 
                 def step_angle():
                     self.rotation = rotation(target_angle,1)
-                    current_angle = self.moving_obj.rotation()
-                    testkey = abs(current_angle - target_angle)
+                    testkey = abs(self.robot3 - target_angle)
                     if testkey < 10:
                         self.Wleft = 0
                         self.Wright = 0
@@ -1076,10 +1100,12 @@ class MainWindow:
                         self.uic.VelLeft.setText(f"Wleft: 0 rad/s")
                         step()
                     else:
-                        self.Wleft, self.Wright = self.rotation.control(current_angle)
+                        self.Wleft, self.Wright = self.rotation.control(self.robot3)
+                        self.moving_obj.setPos(QPointF(self.robot1, self.robot2))
+                        self.moving_obj.setRotation(self.robot3)
                         self.uic.VelRight.setText(f"Wright: {self.Wright:.2f} rad/s")
                         self.uic.VelLeft.setText(f"Wleft: {self.Wleft:.2f} rad/s")
-                        QTimer.singleShot(100,step_angle)
+                        QTimer.singleShot(10,step_angle)
                 step_angle()
             move_step(1)
                 
@@ -1095,8 +1121,10 @@ class MainWindow:
 
         # Bắt đầu animate với đoạn đầu tiên
         animate_segment(0)
-        t_send = threading.Thread(target=send_data, daemon=True)
-        t_send.start()
+        t_send1 = threading.Thread(target=read_data_from_camera, daemon=True)
+        t_send2 = threading.Thread(target=send_data, daemon=True)
+        t_send1.start()
+        t_send2.start()
 
         
     
