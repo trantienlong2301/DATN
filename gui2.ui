@@ -166,6 +166,7 @@
     <bool>false</bool>
    </attribute>
    <addaction name="actionOpen"/>
+   <addaction name="actionconnect"/>
    <addaction name="actionAddGoal"/>
    <addaction name="actionTrim"/>
    <addaction name="actionAddLine"/>
@@ -173,6 +174,7 @@
    <addaction name="actionrobot"/>
    <addaction name="actionInput"/>
    <addaction name="actioncoordinate"/>
+   <addaction name="actiontracking"/>
   </widget>
   <widget class="QToolBar" name="toolBar_2">
    <property name="sizePolicy">
@@ -300,6 +302,33 @@
    </property>
    <property name="text">
     <string>coordinate</string>
+   </property>
+  </action>
+  <action name="actionconnect">
+   <property name="icon">
+    <iconset>
+     <normaloff>icons/connect.png</normaloff>icons/connect.png</iconset>
+   </property>
+   <property name="text">
+    <string>connect</string>
+   </property>
+  </action>
+  <action name="actionSetCo">
+   <property name="icon">
+    <iconset>
+     <normaloff>icons/di_chuyen.png</normaloff>icons/di_chuyen.png</iconset>
+   </property>
+   <property name="text">
+    <string>SetCo</string>
+   </property>
+  </action>
+  <action name="actiontracking">
+   <property name="icon">
+    <iconset>
+     <normaloff>icons/tracking.png</normaloff>icons/tracking.png</iconset>
+   </property>
+   <property name="text">
+    <string>tracking</string>
    </property>
   </action>
  </widget>

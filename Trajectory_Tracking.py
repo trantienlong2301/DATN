@@ -59,8 +59,8 @@ class PurePursuit:
         delta = math.atan2(2 * self.L * math.sin(angle), self.Ld)
         # vel_right = v * (1 + self.L * math.sin(angle)/self.Ld)
         # vel_left = v * (1 - self.L * math.sin(angle)/self.Ld)
-        vel_right = v * (1 + math.tan(delta))
-        vel_left = v * (1 - math.tan(delta))
+        vel_right = v * (1 + math.tan(delta)) *1000
+        vel_left = v * (1 - math.tan(delta)) * 1000
         return delta, vel_right, vel_left
 
 class rotation:
