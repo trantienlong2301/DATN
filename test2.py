@@ -1,21 +1,43 @@
-data_str = "1.2345679,-0.1234568,0.5000000,10.1234567,-20.7654321,5.9876543\n"
-parts = data_str.split(',')
+import socket
+import time
 
-# Kiểm tra độ dài đúng 6 phần
-if len(parts) == 6:
-    try:
-        x = float(parts[0])
-        y = float(parts[1])
-        z = float(parts[2])
-        pitch = float(parts[3])
-        neg_yaw = float(parts[4])
-        neg_roll = float(parts[5])
-        
-        # Nếu bạn muốn giá trị yaw, roll theo dấu ban đầu:
-        yaw = -neg_yaw
-        roll = -neg_roll
-        
-        # Giờ bạn có các biến: x, y, z, pitch, yaw, roll
-        print(f"x={x}, y={y}, z={z}, pitch={pitch}, yaw={yaw}, roll={roll}")
-    except ValueError:
-        print("Không thể chuyển phần nào đó thành float:", parts)
+HOST = '192.168.1.38'  # Thay bằng địa chỉ IP của ESP32
+PORT = 8000
+
+prev_receive_time = None
+
+with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+    print("Kết nối tới ESP32...")
+    s.connect((HOST, PORT))
+    print("Đã kết nối!")
+
+    while True:
+        # Nhận 1 dòng dữ liệu
+        data = b''
+        while not data.endswith(b'\n'):
+            chunk = s.recv(1)
+            if not chunk:
+                print("ESP32 ngắt kết nối.")
+                exit()
+            data += chunk
+
+        try:
+            line = data.decode().strip()
+            parts = line.split(',')
+            if len(parts) != 2:
+                continue
+
+            count = int(parts[0])
+            esp32_time = int(parts[1])  # timestamp từ ESP32 (ms)
+            receive_time = int(time.time() * 1000)  # timestamp hiện tại (ms)
+
+            delay = receive_time - esp32_time
+            interval = 0
+            if prev_receive_time is not None:
+                interval = receive_time - prev_receive_time
+            prev_receive_time = receive_time
+
+            print(f"[#{count}] ESP32: {esp32_time} | Python: {receive_time} | Delay: {delay} ms | Interval: {interval} ms")
+
+        except Exception as e:
+            print("Lỗi:", e)
