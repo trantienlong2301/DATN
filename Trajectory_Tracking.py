@@ -70,7 +70,17 @@ class rotation:
 
     def control(self, state):
         angle_diff = self.target - state
-        direction = 1 if angle_diff > 0 else -1
+        #direction = 1 if angle_diff > 0 else -1
+        if angle_diff > 0 and angle_diff < 180 :
+            direction = 1
+        elif angle_diff < 0 and angle_diff > 180:
+            direction = 1
+        elif angle_diff > 0 and angle_diff > 180:
+            direction = -1
+        elif angle_diff < 0 and angle_diff < 180:
+            direction = -1
+        else:
+            direction = 1
         right_speed = direction * self.vel
-        left_speed = -direction * self.vel
+        left_speed = -direction * self.vel 
         return left_speed, right_speed

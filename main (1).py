@@ -726,7 +726,7 @@ class MainWindow:
                             move_step(index+1)
                         else:
                             v_desired = min(math.sqrt(2 * 500 * d_travelled) if d_travelled > 0 else 50,
-                                        1000 * self.speed,
+                                        10*self.speed,
                                         math.sqrt(2 * 500 * d_remain) if d_remain > 0 else 50)
                             angle,velRight,velLeft =self.PurePursuit.control([current_pos.x(),current_pos.y(),math.radians(current_angle)],v_desired)
                             self.Wright = velRight/self.state.R
@@ -742,8 +742,13 @@ class MainWindow:
                             self.moving_obj.setRotation(newAngle)
                             QTimer.singleShot(100,step)
                     def step_angle():
-                        self.rotation = rotation(target_angle,1)
+                        self.rotation = rotation(target_angle,5)
                         current_angle = self.moving_obj.rotation()
+                        current_angle = current_angle - int(current_angle/360)*360
+                        if current_angle <= -180: 
+                            current_angle = 360 - current_angle
+                        if current_angle > 180:
+                            current_angle = -360 + current_angle
                         current_pos = self.moving_obj.pos()
                         testkey = abs(current_angle - target_angle)
                         print("test: ", testkey)
@@ -761,6 +766,7 @@ class MainWindow:
                             velang = math.degrees(velang)
                             newPos = current_pos + QPointF(velx*0.1,vely*0.1)
                             newAngle = current_angle + velang * 0.1
+                            newAngle = int(newAngle)
                             self.uic.VelRight.setText(f"Wright: {self.Wright:.2f} rad/s")
                             self.uic.VelLeft.setText(f"Wleft: {self.Wleft:.2f} rad/s")
                             self.uic.Angle.setText(f"Angle: {-newAngle:.2f} deg")
