@@ -175,6 +175,7 @@
    <addaction name="actionInput"/>
    <addaction name="actioncoordinate"/>
    <addaction name="actiontracking"/>
+   <addaction name="actionstop"/>
   </widget>
   <widget class="QToolBar" name="toolBar_2">
    <property name="sizePolicy">
@@ -329,6 +330,15 @@
    </property>
    <property name="text">
     <string>tracking</string>
+   </property>
+  </action>
+  <action name="actionstop">
+   <property name="icon">
+    <iconset>
+     <normaloff>icons/stop.png</normaloff>icons/stop.png</iconset>
+   </property>
+   <property name="text">
+    <string>stop</string>
    </property>
   </action>
  </widget>

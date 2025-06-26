@@ -20,7 +20,7 @@ class InputDialog(QDialog):
         self.ui.Chieu_rong.setRange(0,1000)
         self.ui.Chieu_rong.setValue(245)
         self.ui.Ban_kinh.setValue(33)
-        self.ui.Vmax.setValue(0.3)
+        self.ui.Vmax.setValue(0.1)
         self.ui.pushButton.clicked.connect(self.accept)
 
 
@@ -81,19 +81,25 @@ class TrackingWorker(QObject):
         self.running = True
 
     def run(self):
+        prev_receive_time = None
         while self.running:
             try:
                 data = self.camera.recv(1024).decode()
                 print('Received from server: ' + data)
                 parts = data.split(',')
                 if len(parts) == 6:
+                    receive_time = int(time.time() * 1000)
+                    if prev_receive_time is not None:
+                        interval = receive_time - prev_receive_time
+                        print("interval:",interval)
+                    prev_receive_time = receive_time
+
                     x = float(parts[0])
                     y = float(parts[1])
                     z = float(parts[2])
                     pitch = float(parts[3])
                     yaw = float(parts[4])
                     roll = float(parts[5])
-
                     x_gui, y_gui, angle = self.convert_func(x, z, yaw)
                     self.position_signal.emit(x_gui, y_gui, angle)
             except Exception as e:
@@ -140,6 +146,7 @@ class MainWindow:
         self.uic.actionInput.triggered.connect(self.Show_input_diaglog)
         self.uic.actionconnect.triggered.connect(self.connect)
         self.uic.actiontracking.triggered.connect(self.tracking)
+        self.uic.actionstop.triggered.connect(self.stop)
         # tạo graphics trên widget
         layout = QtWidgets.QVBoxLayout()
         self.graphicsView = CustomGraphicsView(self.uic.Screen)
@@ -180,7 +187,7 @@ class MainWindow:
         self.robot3 = 0
         self.ban_kinh = 33
         self.chieu_rong = 245
-        self.speed = 0.3
+        self.speed = 0.1
         self.esp32 = None
         self.camera = None
 
@@ -776,6 +783,14 @@ class MainWindow:
             # Bắt đầu animate với đoạn đầu tiên
             animate_segment(0)
 
+    def stop(self):
+        if self.esp32 is not None:
+            msg = f"0,0\n"
+            self.esp32.sendall(msg.encode())
+            self.esp32.close()
+            self.esp32 = None
+        
+
     def Start(self):
 
         def send_data():
@@ -844,16 +859,14 @@ class MainWindow:
                     current_angle = self.moving_obj.rotation()
                     d_travelled = math.hypot(current_pos.x() - start_point.x(), current_pos.y() - start_point.y())
                     d_remain = math.hypot(current_pos.x() - end_point.x(), current_pos.y() - end_point.y()) -100
-                    if d_remain < 100:
+                    if d_remain < 50:
                         self.uic.VelRight.setText(f"Wright: 0 rad/s")
                         self.uic.VelLeft.setText(f"Wleft: 0 rad/s")
                         self.Wleft =0
                         self.Wright = 0
                         move_step(index+1)
                     else:
-                        v_desired = min(math.sqrt(2 * 500 * d_travelled) if d_travelled > 0 else 50,
-                                    self.speed,
-                                    math.sqrt(2 * 500 * d_remain) if d_remain > 0 else 50)
+                        v_desired = self.speed
                         angle,velRight,velLeft =self.PurePursuit.control([current_pos.x(),current_pos.y(),math.radians(current_angle)],v_desired)
                         self.Wright = velRight/self.state.R
                         self.Wleft = velLeft/self.state.R
@@ -862,11 +875,10 @@ class MainWindow:
                         QTimer.singleShot(10,step)
                 
                 def step_angle():
-                    self.rotation = rotation(target_angle,5)
+                    self.rotation = rotation(target_angle,2)
                     current_angle = self.moving_obj.rotation()
-                    current_pos = self.moving_obj.pos()
                     testkey = abs(current_angle - target_angle)
-                    if testkey < 30:
+                    if testkey < 10:
                         self.Wleft = 0
                         self.Wright = 0
                         self.uic.VelRight.setText(f"Wright: 0 rad/s")
@@ -919,7 +931,7 @@ class MainWindow:
                         self.esp32 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                         self.esp32.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
                         self.esp32.settimeout(10)
-                        self.esp32.connect(('192.168.1.38', 8000))
+                        self.esp32.connect(('192.168.158.56', 1234))
                         self.esp32.settimeout(0)
                         print(" Đã kết nối ESP32.")
                         break
@@ -932,10 +944,7 @@ class MainWindow:
                     try:
                         print(" Đang kết nối Camera...")
                         self.camera = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                        self.esp32.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-                        self.esp32.settimeout(10)
-                        self.camera.connect(('192.168.1.38', 8001))
-                        self.esp32.settimeout(0)
+                        self.camera.connect(('192.168.158.113', 8000))
                         print(" Đã kết nối Camera.")
                         break
                     except Exception as e:
@@ -948,7 +957,7 @@ class MainWindow:
             self.thread.finished.connect(lambda: self.uic.actionconnect.setEnabled(True))
             self.thread.start()
         else:
-            self.esp32.close()
+            # self.esp32.close()
             self.camera.close()
             print("đã ngắt kết nối")
 
@@ -984,106 +993,103 @@ class MainWindow:
 
     def Start2(self):
         def send_data():
+            dem = 0
             while self.flag:
-                try:
-                    left_speed = int(-self.Wright *10)
-                    right_speed = int(self.Wleft *10)
+                    dem +=1
+                    left_speed = int(-self.Wright *17.54)
+                    right_speed = int(self.Wleft *17.54)
                     msg = f"{left_speed},{right_speed}\n"
-                    #print(f" Gửi: {msg.strip()}")
-                    #print(f"Đã gửi lúc {time.time()}")
+                    print(f"📤 Gửi: {msg.strip()}")
+                    print(f"Đã gửi lúc {time.time()}")
                     self.esp32.sendall(msg.encode())
                     time.sleep(0.01)
-                except:
-                    print("Lost Connection1")
-                    break
-            
-        def read_data_from_camera():
-            segments = self.path[0]
-            final_goal = segments[-1]
-            index = 1
-            densified_segment = self.densify_path(segments,200)
-            self.PurePursuit = PurePursuit(densified_segment,500,100)
-            while self.flag:
-                try:
-                    data = self.camera.recv(1024).decode()  
-                    print('Received from server: ' + data)         
-                    parts = data.split(',')
-                    if len(parts) == 6:
-                        
-                            x = float(parts[0])
-                            y = float(parts[1])
-                            z = float(parts[2])
-                            pitch = float(parts[3])
-                            yaw = float(parts[4])
-                            roll = float(parts[5])
-                            if hasattr(self, 'coordinate'):
-                                toa_do1, toa_do2 = self.coordinate.pos().x(), self.coordinate.pos().y()
-                                self.robot1 = toa_do1 - z
-                                self.robot2 = toa_do2 + x
-                                self.robot3 = -yaw    
-                                print(self.robot1,self.robot2,self.robot3)
-                            goal = segments[index]
-                            angle_goal = int(math.degrees(math.atan2(goal[1] - self.robot2, goal[0] - self.robot1)))
-                            print(f"goal:{goal},angle_goal:{angle_goal}")
-                            print("dk1:",math.sqrt((self.robot2 - goal[1])**2+(self.robot1 - goal[0])**2))
-                        
-                            if math.sqrt((self.robot2 - final_goal[1])**2+(self.robot1 - final_goal[0])**2) < 200:
-                                self.Wleft =0
-                                self.Wright = 0
-                                self.flag = False
-                            elif abs(self.robot3 - angle_goal) > 30:
-                                print(abs(self.robot3 - angle_goal))
-                                self.rotation = rotation(angle_goal, 1)
-                                self.Wleft, self.Wright = self.rotation.control(self.robot3)
-                            elif math.sqrt((self.robot2 - goal[1])**2+(self.robot1 - goal[0])**2) > 100:
-                                _, velRight, velLeft = self.PurePursuit.control([self.robot1, self.robot2, math.radians(self.robot3)], self.speed)
-                                self.Wright = velRight/33
-                                self.Wleft = velLeft/33
-                            else:
-                                index = index + 1
-                            self.uic.VelRight.setText(f"Wright: {self.Wright:.2f} rad/s")
-                            self.uic.VelLeft.setText(f"Wleft: {self.Wleft:.2f} rad/s")        
-                except socket.error as e:
-                    if isinstance(e, BlockingIOError):
-                        time.sleep(0.01)
-                        continue
-                    else:
-                        print(f"Camera socket error: {e}")
-                        break
-                         
-        self.flag = True
+
         segments = self.path
-        self.robot1, self.robot2, self.robot3 = self.moving_obj.pos().x(),self.moving_obj.pos().y(),self.moving_obj.rotation()
-        if not hasattr(self, 'moving_obj') or not hasattr(self, 'ban_kinh') or len(segments) == 0:#Kiểm tra nếu không có moving_obj hoặc segments trống thì thoát hàm
+        if not hasattr(self, 'moving_obj')  or len(segments) == 0:#Kiểm tra nếu không có moving_obj hoặc segments trống thì thoát hàm
             self.display_button_color("Simulate")
             print("error")
             return
-        # Các biến dùng để điều khiển việc chuyển sang đoạn tiếp theo
+        
+       # Các biến dùng để điều khiển việc chuyển sang đoạn tiếp theo
+        self.state = State(self.ban_kinh,self.chieu_rong)
+        self.flag = True
         self.resume_timer = None
         self.next_segment_callback = None
         # Định nghĩa hàm di chuyển từng bước
-        
-        def animate():
-            self.moving_obj.setPos(QPointF(self.robot1,self.robot2))     
-            self.moving_obj.setRotation(self.robot3)
-            if self.flag:
-                QTimer.singleShot(100,animate)
-        
-        # def wait_for_resume(next_seg_index):
-        #     # Lưu lại callback chuyển sang đoạn tiếp theo
-        #     self.next_segment_callback = lambda: animate_segment(next_seg_index)
-        #     # Sử dụng QTimer để đợi 5 giây
-        #     self.resume_timer = QTimer()
-        #     self.resume_timer.setSingleShot(True)
-        #     self.resume_timer.timeout.connect(self.next_segment_callback)
-        #     self.resume_timer.start(5000)
-        animate()
+        def animate_segment(seg_index):
+            if (abs(self.moving_obj.pos().x()  - self.path[-1][-1][0]) < 100) and (abs(self.moving_obj.pos().y() - self.path[-1][-1][1]) < 100) :
+                self.flag = False
+                print(" completed.")
+
+            if seg_index >= len(segments):
+                self.display_button_color("Simulate")
+                self.flag =False
+                return  # Đã hết các đoạn, dừng animation
+
+            segment = segments[seg_index]
+            # Nếu đoạn không đủ điểm để di chuyển, chuyển sang đoạn kế
+            if len(segment) < 2:
+                wait_for_resume(seg_index + 1)
+                return
+            
+            start_point = self.moving_obj.pos()
+            self.point1x,self.point1y = start_point.x(),start_point.y()
+
+            def move_step(index):
+                if index >= len(segment):
+                     # Khi hoàn thành đoạn, tạm dừng 5s hoặc chờ nhấn nút để chuyển sang đoạn tiếp theo
+                    wait_for_resume(seg_index + 1)
+                    return  # Kết thúc hàm
+                start_point = self.moving_obj.pos()
+                self.point1x,self.point1y = start_point.x(),start_point.y()
+                end_point = QPointF(segment[index][0], segment[index][1])
+                path = segment
+                densified_segment = self.densify_path(path,200)
+                self.PurePursuit = PurePursuit(densified_segment,500,100)
+                def step():
+                    current_pos = self.moving_obj.pos()
+                    self.scene.addLine(
+                        self.point1x,self.point1y,
+                        current_pos.x(),current_pos.y(),
+                        QPen(Qt.red, 30)
+                    )
+                    self.point1x,self.point1y = current_pos.x(),current_pos.y()
+                    current_angle = self.moving_obj.rotation()
+                    d_travelled = math.hypot(current_pos.x() - start_point.x(), current_pos.y() - start_point.y())
+                    d_remain = math.hypot(current_pos.x() - end_point.x(), current_pos.y() - end_point.y()) -100
+                    if d_remain < 100:
+                        self.uic.VelRight.setText(f"Wright: 0 rad/s")
+                        self.uic.VelLeft.setText(f"Wleft: 0 rad/s")
+                        self.Wleft =0
+                        self.Wright = 0
+                        move_step(index+1)
+                    else:
+                        v_desired = self.speed 
+                        _,velRight,velLeft =self.PurePursuit.control([current_pos.x(),current_pos.y(),math.radians(current_angle)],v_desired)
+                        self.Wright = velRight/self.state.R
+                        self.Wleft = velLeft/self.state.R
+                        self.uic.VelRight.setText(f"Wright: {self.Wright:.2f} rad/s")
+                        self.uic.VelLeft.setText(f"Wleft: {self.Wleft:.2f} rad/s")
+                        QTimer.singleShot(10,step)
+                
+                
+                step()
+            move_step(1)
+                
+
+        def wait_for_resume(next_seg_index):
+            # Lưu lại callback chuyển sang đoạn tiếp theo
+            self.next_segment_callback = lambda: animate_segment(next_seg_index)
+            # Sử dụng QTimer để đợi 5 giây
+            self.resume_timer = QTimer()
+            self.resume_timer.setSingleShot(True)
+            self.resume_timer.timeout.connect(self.next_segment_callback)
+            self.resume_timer.start(5000)
+
         # Bắt đầu animate với đoạn đầu tiên
-        t_send1 = threading.Thread(target=read_data_from_camera, daemon=True)
-        t_send2 = threading.Thread(target=send_data, daemon=True)
-        t_send1.start()
-        t_send2.start()
-       
+        animate_segment(0)
+        t_send = threading.Thread(target=send_data, daemon=True)
+        t_send.start()
 
         
     

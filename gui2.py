@@ -175,6 +175,11 @@ class Ui_MainWindow(object):
         icon13.addPixmap(QtGui.QPixmap("icons/tracking.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
         self.actiontracking.setIcon(icon13)
         self.actiontracking.setObjectName("actiontracking")
+        self.actionstop = QtWidgets.QAction(MainWindow)
+        icon14 = QtGui.QIcon()
+        icon14.addPixmap(QtGui.QPixmap("icons/stop.png"), QtGui.QIcon.Normal, QtGui.QIcon.Off)
+        self.actionstop.setIcon(icon14)
+        self.actionstop.setObjectName("actionstop")
         self.toolBar.addAction(self.actionOpen)
         self.toolBar.addAction(self.actionconnect)
         self.toolBar.addAction(self.actionAddGoal)
@@ -185,6 +190,7 @@ class Ui_MainWindow(object):
         self.toolBar.addAction(self.actionInput)
         self.toolBar.addAction(self.actioncoordinate)
         self.toolBar.addAction(self.actiontracking)
+        self.toolBar.addAction(self.actionstop)
         self.toolBar_2.addAction(self.actionContinue)
         self.toolBar_2.addAction(self.actionSimulate)
         self.toolBar_2.addAction(self.actionStart)
@@ -214,6 +220,7 @@ class Ui_MainWindow(object):
         self.actionconnect.setText(_translate("MainWindow", "connect"))
         self.actionSetCo.setText(_translate("MainWindow", "SetCo"))
         self.actiontracking.setText(_translate("MainWindow", "tracking"))
+        self.actionstop.setText(_translate("MainWindow", "stop"))
 
 
 if __name__ == "__main__":
