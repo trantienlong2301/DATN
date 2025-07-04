@@ -81,27 +81,37 @@ class TrackingWorker(QObject):
         self.running = True
 
     def run(self):
+        buffer = ""
         prev_receive_time = None
         while self.running:
             try:
                 data = self.camera.recv(1024).decode()
-                print('Received from server: ' + data)
-                parts = data.split(',')
-                if len(parts) == 6:
-                    receive_time = int(time.time() * 1000)
-                    if prev_receive_time is not None:
-                        interval = receive_time - prev_receive_time
-                        print("interval:",interval)
-                    prev_receive_time = receive_time
+                buffer += data  # Nối thêm dữ liệu nhận được
 
-                    x = float(parts[0])
-                    y = float(parts[1])
-                    z = float(parts[2])
-                    pitch = float(parts[3])
-                    yaw = float(parts[4])
-                    roll = float(parts[5])
-                    x_gui, y_gui, angle = self.convert_func(x, z, yaw)
-                    self.position_signal.emit(x_gui, y_gui, angle)
+                if '\n' in buffer:
+                    lines = buffer.split('\n')       # Tách tất cả dòng hoàn chỉnh
+                    last_line = lines[-2] if len(lines) >= 2 else None  # dòng cuối hoàn chỉnh
+                    buffer = lines[-1]               # giữ lại phần chưa hoàn chỉnh
+
+                    if last_line:
+                        print("Received from server:", last_line)
+                        parts = last_line.strip().split(',')
+                        if len(parts) == 6:
+                            receive_time = int(time.time() * 1000)
+                            if prev_receive_time is not None:
+                                interval = receive_time - prev_receive_time
+                                print("Interval:", interval)
+                            prev_receive_time = receive_time
+
+                            x = float(parts[0])
+                            y = float(parts[1])
+                            z = float(parts[2])
+                            pitch = float(parts[3])
+                            yaw = float(parts[4])
+                            roll = float(parts[5])
+
+                            x_gui, y_gui, angle = self.convert_func(x, z, yaw)
+                            self.position_signal.emit(x_gui, y_gui, angle)
             except Exception as e:
                 print(f"Lost connection: {e}")
                 break
@@ -377,9 +387,9 @@ class MainWindow:
         # Vẽ hình tròn tại từng điểm trong danh sách
         for point in self.selected_goals:
             circle = self.scene.addEllipse(
-                point[0] - 250,  # X tọa độ góc trên bên trái
-                point[1] - 250,  # Y tọa độ góc trên bên trái
-                500, 500,  # Chiều rộng và chiều cao (hình tròn có đường kính 500)
+                point[0] - 150,  # X tọa độ góc trên bên trái
+                point[1] - 150,  # Y tọa độ góc trên bên trái
+                300, 300,  # Chiều rộng và chiều cao (hình tròn có đường kính 500)
                 QPen(Qt.green, 20)  # Màu viền xanh lá và độ dày 20px
             )
             self.current_circles.append(circle)  # Lưu lại để xóa sau này
@@ -881,7 +891,7 @@ class MainWindow:
                         QTimer.singleShot(10,step)
                 
                 def step_angle():
-                    self.rotation = rotation(target_angle,2)
+                    self.rotation = rotation(target_angle,1)
                     current_angle = self.moving_obj.rotation()
                     testkey = abs(current_angle - target_angle)
                     if testkey < 10:
@@ -950,7 +960,7 @@ class MainWindow:
                     try:
                         print(" Đang kết nối Camera...")
                         self.camera = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                        self.camera.connect(('192.168.158.113', 8000))
+                        self.camera.connect(('192.168.158.102', 8000))
                         print(" Đã kết nối Camera.")
                         break
                     except Exception as e:
